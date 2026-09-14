@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+:root {
+  --color-ink: #f7f4ef;
+  --color-surface: #efeae1;
+  --color-surface-raised: #e4ddcf;
+  --color-bone: #211e1a;
+  --color-bone-dim: #6b6357;
+  --color-oak: #8c5a2b;
+  --color-brass: #8b7355;
+  --color-brass-dim: #dad0be;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-quote: "Cormorant Variable", ui-serif, Georgia, serif;
+  --font-body: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-bone: var(--color-bone);
+  --color-bone-dim: var(--color-bone-dim);
+  --color-oak: var(--color-oak);
+  --color-brass: var(--color-brass);
+  --color-brass-dim: var(--color-brass-dim);
+  --font-display: var(--font-display);
+  --font-quote: var(--font-quote);
+  --font-body: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-bone);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+::selection {
+  background: var(--color-oak);
+  color: var(--color-ink);
+}
+
+@media (pointer: fine) {
+  .custom-cursor-active,
+  .custom-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+@keyframes reveal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- Simulation card: once a card settles into the left-hand column,
+   only its icon remains — title and summary fade out entirely. --- */
+
+.card-col-layout.card-root {
+  padding: 0.5rem;
+  overflow: hidden;
+  border-radius: 9999px;
+}
+
+.card-col-layout .card-title,
+.card-col-layout .card-summary {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* --- Reveal on scroll: several distinct entrance textures, reversible --- */
+
+.reveal {
+  opacity: 0;
+  transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 800ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal.reveal-up {
+  transform: translateY(28px);
+}
+
+.reveal.reveal-scale {
+  transform: scale(0.94);
+}
+
+.reveal.reveal-left {
+  transform: translateX(-32px);
+}
+
+.reveal.reveal-right {
+  transform: translateX(32px);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* --- Scroll-linked word colouring --- */
+
+.scroll-color-text span {
+  color: var(--color-bone-dim);
+  opacity: 0.45;
+  transition: color 500ms ease, opacity 500ms ease;
+}
+
+.scroll-color-text span.is-active {
+  color: var(--color-bone);
+  opacity: 1;
+}
+
+.scroll-color-text.quote span {
+  color: var(--color-bone-dim);
+  opacity: 0.4;
+}
+
+.scroll-color-text.quote span.is-active {
+  color: var(--color-oak);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .scroll-color-text span {
+    opacity: 1;
+    color: var(--color-bone);
+  }
+  .scroll-color-text.quote span {
+    color: var(--color-oak);
+  }
+}
