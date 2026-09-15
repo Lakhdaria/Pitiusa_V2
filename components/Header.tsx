@@ -50,7 +50,7 @@ export default function Header() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-4 z-50 flex justify-center px-4 transition-transform duration-500 ease-out md:top-6 ${
+        className={`fixed inset-x-0 top-1.5 z-50 flex justify-center px-4 transition-transform duration-500 ease-out md:top-2 ${
           hidden ? "-translate-y-[150%]" : "translate-y-0"
         }`}
       >

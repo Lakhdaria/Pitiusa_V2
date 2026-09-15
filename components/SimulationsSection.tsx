@@ -88,23 +88,56 @@ const clearCardStyle = (el: HTMLElement) => {
   el.style.margin = "";
   el.style.zIndex = "";
   el.style.opacity = "";
+  el.style.transform = "";
   el.querySelector<HTMLElement>(".card-root")?.classList.remove("card-col-layout");
 };
 
 // The closing statement, revealed one character at a time in act III.
-// Placeholder copy for now.
-const CLOSING_TEXT =
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
-const CLOSING_CHARS = Array.from(CLOSING_TEXT);
+// Kept as blocks rather than one string so the heading can be styled
+// separately, and flattened into a single character sequence so the
+// writing head can run straight through the whole thing.
+const CLOSING_BLOCKS = [
+  { heading: true, text: "Where Art and Technology Meet" },
+  {
+    heading: false,
+    text: "Pitiusa showcases the pinnacle of French craftsmanship, blending the artistry of master cabinetmakers with cutting-edge technologies.",
+  },
+  {
+    heading: false,
+    text: "Pitiusa redefines aesthetics in a living room and ensures next-level immersion within a single bespoke installation.",
+  },
+];
+// Index of each block's first character in the global sequence.
+const CLOSING_OFFSETS = CLOSING_BLOCKS.reduce<number[]>((acc, b, i) => {
+  acc.push(i === 0 ? 0 : acc[i - 1] + Array.from(CLOSING_BLOCKS[i - 1].text).length);
+  return acc;
+}, []);
+const CLOSING_LENGTH =
+  CLOSING_OFFSETS[CLOSING_OFFSETS.length - 1] +
+  Array.from(CLOSING_BLOCKS[CLOSING_BLOCKS.length - 1].text).length;
 
-// Progress (0–1 across the whole pinned section, desktop only) boundaries
-// between the three acts. All shifted down by the same factor when act III
-// was added, so each earlier phase keeps the exact scroll length it had.
-const COLUMN_END = 0.29; // cards have finished stacking into the column
-const CARDS_END = 0.36; // …they hold a beat, then the cross-fade begins
-const FADE_END = 0.41;
-const IMAGE_HOLD_END = 0.5; // image shown alone, full-width, before captions begin
-const ANN_END = 0.86; // all captions are out; act III takes over
+// Every phase is budgeted in svh — how much scrolling it should take —
+// and the 0–1 progress boundaries are derived from those budgets. Tuning
+// the pace is then a matter of editing one number here, instead of
+// hand-recomputing a set of fractions that have to stay consistent with
+// the section's own height.
+const PHASES = {
+  entry: 90, // cards arrive one by one, right to left
+  cards: CARD_COUNT * 70, // cards stack into the column
+  hold: 25, // …and hold a beat
+  fade: 35, // cross-fade to the machine
+  image: 35, // machine alone on screen
+  captions: ANN_COUNT * 70, // captions come in one by one
+  closing: 210, // act III: machine steps aside, text writes itself, all exits
+};
+const SCROLL_SVH = Object.values(PHASES).reduce((a, b) => a + b, 0);
+
+const ENTRY_END = PHASES.entry / SCROLL_SVH;
+const COLUMN_END = ENTRY_END + PHASES.cards / SCROLL_SVH;
+const CARDS_END = COLUMN_END + PHASES.hold / SCROLL_SVH;
+const FADE_END = CARDS_END + PHASES.fade / SCROLL_SVH;
+const IMAGE_HOLD_END = FADE_END + PHASES.image / SCROLL_SVH;
+const ANN_END = IMAGE_HOLD_END + PHASES.captions / SCROLL_SVH;
 
 export default function SimulationsSection() {
   const reduced = useReducedMotion();
@@ -167,9 +200,10 @@ export default function SimulationsSection() {
     const setup = () => {
       if (!wrapperRef.current) return;
       const desktop = window.innerWidth >= 768;
-      // +200svh on desktop for act III (captions out, machine slides left,
-      // closing text writes itself).
-      const h = desktop ? CARD_COUNT * 120 + ANN_COUNT * 110 + 160 + 200 : CARD_COUNT * 140 + 60;
+      // The scrollable distance is the sum of the phase budgets; +100svh
+      // because the first viewport-height of the wrapper is consumed by
+      // pinning it, before progress starts counting.
+      const h = desktop ? SCROLL_SVH + 100 : CARD_COUNT * 140 + 60;
       wrapperRef.current.style.height = `${h}svh`;
       captureStartRects();
     };
@@ -208,7 +242,12 @@ export default function SimulationsSection() {
       if (progress <= 0.001) captureStartRects();
       const stickyRect = sticky.getBoundingClientRect();
 
-      const cardsT = isDesktop ? Math.min(1, progress / COLUMN_END) : progress;
+      // The column only starts forming once the cards have finished
+      // arriving, so the two movements never overlap.
+      const cardsT = isDesktop
+        ? Math.max(0, Math.min(1, (progress - ENTRY_END) / (COLUMN_END - ENTRY_END)))
+        : progress;
+      const entryT = isDesktop ? Math.max(0, Math.min(1, progress / ENTRY_END)) : 1;
 
       const cardsFade = isDesktop
         ? 1 - Math.max(0, Math.min(1, (progress - CARDS_END) / (FADE_END - CARDS_END)))
@@ -219,21 +258,40 @@ export default function SimulationsSection() {
       const annProgress = isDesktop
         ? Math.max(0, Math.min(1, (progress - IMAGE_HOLD_END) / (ANN_END - IMAGE_HOLD_END)))
         : 0;
+      // Act III progress, and the two things it drives in act I's layer:
+      // the captions leaving, and the icons coming back once the machine
+      // has finished stepping aside.
+      const t3 = isDesktop ? Math.max(0, Math.min(1, (progress - ANN_END) / (1 - ANN_END))) : 0;
+      const captionsOut = Math.max(0, Math.min(1, t3 / 0.18));
+      const badgesBack = Math.max(0, Math.min(1, (t3 - 0.5) / 0.2));
+      // Closing beat: once the text has finished writing, the icons, the
+      // machine and the copy all go at once, on the same curve, so the
+      // section hands over to the next one on a clean screen.
+      const exit = Math.max(0, Math.min(1, (t3 - 0.9) / 0.1));
+
+      // The section is tall enough that its top edge shows well before it
+      // pins, which let act I sit on screen fully formed while the hero was
+      // still being scrolled. Fading it in over the last half-viewport of
+      // the approach means nothing is readable until the section is
+      // actually arriving.
+      const approach = Math.max(0, Math.min(1, 1 - rect.top / (vh * 0.5)));
 
       // Explicit visibility toggling (not just opacity) so an inactive act
       // can never visually or structurally interfere with the active one.
       if (actOneRef.current) {
-        actOneRef.current.style.visibility = cardsFade > 0.01 || !isDesktop ? "visible" : "hidden";
+        const actOneOn = (cardsFade > 0.01 || badgesBack > 0.01) && exit < 0.99;
+        actOneRef.current.style.visibility = actOneOn || !isDesktop ? "visible" : "hidden";
       }
       if (actTwoRef.current) {
-        actTwoRef.current.style.visibility = isDesktop && imageFade > 0.01 ? "visible" : "hidden";
-        actTwoRef.current.style.opacity = `${imageFade}`;
+        const actTwoOpacity = imageFade * (1 - exit);
+        actTwoRef.current.style.visibility = isDesktop && actTwoOpacity > 0.01 ? "visible" : "hidden";
+        actTwoRef.current.style.opacity = `${actTwoOpacity}`;
         actTwoRef.current.style.pointerEvents = imageFade > 0.5 ? "auto" : "none";
       }
 
       // --- Act I: cards → column ---
       if (titleRef.current) {
-        titleRef.current.style.opacity = `${Math.max(0, 1 - cardsT * 3.2) * cardsFade}`;
+        titleRef.current.style.opacity = `${Math.max(0, 1 - cardsT * 3.2) * cardsFade * approach}`;
       }
 
       const gap = 36;
@@ -260,9 +318,16 @@ export default function SimulationsSection() {
         const startTop = stickyRect.top + start.top;
         const startLeft = stickyRect.left + start.left;
 
-        const targetTop = cardsTopStart + i * (badgeSize + colGap);
+        // The column position is expressed relative to the sticky container,
+        // not to the viewport. While the section is pinned the two are the
+        // same thing (its top sits at 0), but once progress hits 1 and the
+        // container is released, the machine and the closing text scroll
+        // away with it — and `fixed` icons anchored to viewport coordinates
+        // would stay glued to the screen instead of leaving with them.
+        const targetTop = stickyRect.top + cardsTopStart + i * (badgeSize + colGap);
+        const targetLeft = stickyRect.left + leftX;
         const top = startTop + (targetTop - startTop) * eased;
-        const left = startLeft + (leftX - startLeft) * eased;
+        const left = startLeft + (targetLeft - startLeft) * eased;
         const width = start.width + (badgeSize - start.width) * eased;
         const height = start.height + (badgeSize - start.height) * eased;
 
@@ -273,9 +338,21 @@ export default function SimulationsSection() {
         el.style.height = `${height}px`;
         el.style.margin = "0";
         el.style.zIndex = `${50 - i}`;
-        el.style.opacity = `${cardsFade}`;
+        // cardsFade takes the icons out for act II; badgesBack brings the
+        // same elements straight back once the machine has moved left, so
+        // the higher of the two wins.
+        // Entrance: staggered from the rightmost card to the leftmost, each
+        // sliding in from its own right. Reversed index, and a window
+        // shorter than the gap between starts, so the order is legible
+        // instead of four cards fading up at once.
+        const entry = ease(Math.max(0, Math.min(1, (entryT - (CARD_COUNT - 1 - i) * 0.2) / 0.4)));
+        el.style.transform = `translate3d(${((1 - entry) * 70).toFixed(1)}px, 0, 0)`;
+        el.style.opacity = `${Math.max(cardsFade * approach * entry, badgesBack) * (1 - exit)}`;
         const inner = el.querySelector<HTMLElement>(".card-root");
-        inner?.classList.toggle("card-col-layout", eased > 0.55);
+        // Flipped almost immediately rather than at the midpoint: the title
+        // and summary have to be gone before the card visibly starts
+        // shrinking, otherwise you watch the text squeeze for half the move.
+        inner?.classList.toggle("card-col-layout", eased > 0.02);
       });
 
       if (!isDesktop) return;
@@ -297,10 +374,6 @@ export default function SimulationsSection() {
       const rowH = 126;
       const rowGap = 22;
       const colGapFromImage = 24;
-
-      // Act III progress, and the caption fade it drives.
-      const t3 = Math.max(0, Math.min(1, (progress - ANN_END) / (1 - ANN_END)));
-      const captionsOut = Math.max(0, Math.min(1, t3 / 0.18));
 
       annotations.forEach((a, i) => {
         const entry = entryRefs.current[i];
@@ -335,7 +408,7 @@ export default function SimulationsSection() {
       // the caption coordinates are derived from the image's live bounding
       // box, so anything that transforms the image would drag them with it.
       const moveT = ease(Math.max(0, Math.min(1, (t3 - 0.22) / 0.3)));
-      imageWrap.style.transform = `translate3d(${(-moveT * window.innerWidth * 0.24).toFixed(
+      imageWrap.style.transform = `translate3d(${(-moveT * window.innerWidth * 0.18).toFixed(
         1
       )}px, 0, 0) scale(${(1 - moveT * 0.18).toFixed(3)})`;
 
@@ -344,8 +417,8 @@ export default function SimulationsSection() {
         closing.style.opacity = `${Math.max(0, Math.min(1, (t3 - 0.3) / 0.12))}`;
         // One character per unit of scroll, with a short feather at the head
         // so glyphs bleed in rather than snapping on.
-        const head = ((t3 - 0.34) / 0.56) * CLOSING_CHARS.length;
-        for (let i = 0; i < CLOSING_CHARS.length; i += 1) {
+        const head = ((t3 - 0.34) / 0.56) * CLOSING_LENGTH;
+        for (let i = 0; i < CLOSING_LENGTH; i += 1) {
           const v = Math.max(0, Math.min(1, (head - i) / 4));
           if (charState.current[i] === v) continue;
           charState.current[i] = v;
@@ -434,7 +507,18 @@ export default function SimulationsSection() {
                 </li>
               ))}
             </ol>
-            <p className="font-display text-2xl leading-snug text-bone">{CLOSING_TEXT}</p>
+            {CLOSING_BLOCKS.map((block, i) => (
+              <p
+                key={i}
+                className={
+                  block.heading
+                    ? "font-display text-2xl leading-tight text-bone"
+                    : "text-base leading-relaxed text-bone-dim"
+                }
+              >
+                {block.text}
+              </p>
+            ))}
           </div>
         </section>
       </>
@@ -534,19 +618,31 @@ export default function SimulationsSection() {
               className="pointer-events-none absolute right-[5vw] top-1/2 w-[42vw] max-w-[640px] -translate-y-1/2"
               style={{ opacity: 0 }}
             >
-              <p className="whitespace-pre-wrap font-display text-3xl leading-snug text-bone lg:text-4xl">
-                {CLOSING_CHARS.map((c, i) => (
-                  <span
-                    key={i}
-                    ref={(el) => {
-                      charRefs.current[i] = el;
-                    }}
-                    style={{ opacity: 0 }}
-                  >
-                    {c}
-                  </span>
-                ))}
-              </p>
+              {CLOSING_BLOCKS.map((block, bi) => (
+                <p
+                  key={bi}
+                  className={
+                    block.heading
+                      ? "mb-8 whitespace-pre-wrap font-display text-4xl leading-tight text-bone lg:text-5xl"
+                      : "mb-6 whitespace-pre-wrap text-xl leading-relaxed text-bone-dim lg:text-2xl"
+                  }
+                >
+                  {Array.from(block.text).map((c, i) => {
+                    const idx = CLOSING_OFFSETS[bi] + i;
+                    return (
+                      <span
+                        key={i}
+                        ref={(el) => {
+                          charRefs.current[idx] = el;
+                        }}
+                        style={{ opacity: 0 }}
+                      >
+                        {c}
+                      </span>
+                    );
+                  })}
+                </p>
+              ))}
             </div>
           </div>
         </div>
@@ -578,7 +674,18 @@ export default function SimulationsSection() {
               </li>
             ))}
           </ol>
-          <p className="font-display text-2xl leading-snug text-bone">{CLOSING_TEXT}</p>
+          {CLOSING_BLOCKS.map((block, i) => (
+            <p
+              key={i}
+              className={
+                block.heading
+                  ? "font-display text-2xl leading-tight text-bone"
+                  : "text-base leading-relaxed text-bone-dim"
+              }
+            >
+              {block.text}
+            </p>
+          ))}
         </div>
       </section>
     </>
