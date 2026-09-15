@@ -63,13 +63,13 @@ export default function Header() {
               : "border-brass-dim/25 bg-surface/35"
           }`}
         >
-          <a href="#" className="relative block h-8 w-[124px] overflow-hidden rounded-md md:h-9 md:w-[140px]">
+          <a href="#" className="relative block h-11 w-11 shrink-0 md:h-14 md:w-14">
             <Image
-              src="/logo/pitiusa-box-white.png"
+              src="/logo/PITUSA Art  Station_logo Circular C (2).png"
               alt="Pitiusa Art Station"
               fill
-              sizes="140px"
-              className="object-contain object-left"
+              sizes="56px"
+              className="object-contain"
               priority
             />
           </a>

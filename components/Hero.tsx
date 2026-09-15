@@ -105,7 +105,7 @@ export default function Hero() {
     };
   }, [reduced, isDesktop]);
 
-  // As the hero scrolls out: the headline fades all the way out, and the
+  // As the hero scrolls out: the headline simply fades away, and the
   // whole framed photo shrinks gently toward the centre and dissolves —
   // a soft, cinematic exit rather than an abrupt cut. Fully reversible
   // since it's driven continuously by scroll position either way.
@@ -119,9 +119,12 @@ export default function Hero() {
     const fade = Math.max(0, Math.min(1, (progress - 0.5) / 0.5));
 
     if (headline) {
-      const scale = 1 - fade * 0.35;
-      headline.style.opacity = `${Math.max(0, 1 - fade * 1.4)}`;
-      headline.style.transform = `translate3d(0, ${(fade * 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+      // Opacity only. The headline used to shrink and drift as it left,
+      // which read as the text being pushed away rather than fading out,
+      // and the inline transform also overrode the class-driven entrance
+      // translate. Leaving transform untouched keeps the two effects from
+      // fighting each other.
+      headline.style.opacity = `${Math.max(0, 1 - fade * 3.4)}`;
     }
     if (frame) {
       const scale = 1 - fade * 0.22;
@@ -179,7 +182,6 @@ export default function Hero() {
             fontVariationSettings: "'wght' 380",
             color: "#3d2410",
             textShadow: "0 2px 28px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.25)",
-            transformOrigin: "left top",
           }}
         >
           Discover Pitiusa Art Station

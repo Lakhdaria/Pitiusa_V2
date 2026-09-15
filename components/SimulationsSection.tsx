@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import Image from "next/image";
 import SimulationCard from "./SimulationCard";
 import { simulations } from "@/content/simulations";
@@ -16,14 +16,29 @@ type Annotation = {
 };
 
 const annotations: Annotation[] = [
-  { title: "Écran incurvé", text: "Un champ de vision continu, sans rupture ni reflet parasite." },
-  { title: "Caissons acoustiques intégrés", text: "Le son est sculpté à même la coque, au plus près de l'oreille." },
-  { title: "Retour de force haute-fidélité", text: "Le mouvement, les g et les conditions de piste, restitués en temps réel." },
+  // Order matters: even indices land in the left column, odd ones in the
+  // right, each side stacking top to bottom — this sequence reproduces the
+  // layout of the reference slide.
   {
-    title: "Navigation tactile embarquée",
-    text: "Un écran unique condense toute la navigation — plus besoin de souris ni de clavier.",
+    title: "Ultra-realistic simulations",
+    text: "Aircraft, drone and racing, set in iconic landscapes from around the world.",
   },
-  { title: "Chêne et frêne massifs", text: "Chaque coque est façonnée à la main par notre réseau d'artisans." },
+  {
+    title: "Predefined routes",
+    text: "Curated routes and experiences designed for younger users.",
+  },
+  {
+    title: "Multisensory modes",
+    text: "Optional massage, meditation and aromatherapy, combined at will.",
+  },
+  {
+    title: "Intuitive touchscreen control",
+    text: "Effortless navigation for every member of the family.",
+  },
+  {
+    title: "Oak and ash",
+    text: "300-year-old oak wood and century-old ash, worked by hand.",
+  },
 ];
 
 const ANN_COUNT = annotations.length;
@@ -48,15 +63,32 @@ const SLOTS: number[] = (() => {
 const SUBJECT_LEFT = 34.7;
 const SUBJECT_RIGHT = 65.3;
 
+// Resets a card to its natural grid position in the flow. Used both before
+// measuring and whenever the section isn't driving the animation, so a card
+// can never be left stranded at a stale `position: fixed` coordinate.
+const clearCardStyle = (el: HTMLElement) => {
+  el.style.position = "";
+  el.style.top = "";
+  el.style.left = "";
+  el.style.width = "";
+  el.style.height = "";
+  el.style.margin = "";
+  el.style.zIndex = "";
+  el.style.opacity = "";
+  el.querySelector<HTMLElement>(".card-root")?.classList.remove("card-col-layout");
+};
+
 // Progress (0–1 across the whole pinned section, desktop only) boundaries
 // between the two acts.
-const CARDS_END = 0.42;
+const COLUMN_END = 0.34; // cards have finished stacking into the column
+const CARDS_END = 0.42; // …they hold a beat, then the cross-fade begins
 const FADE_END = 0.48;
 const IMAGE_HOLD_END = 0.58; // image shown alone, full-width, before captions begin
 
 export default function SimulationsSection() {
   const reduced = useReducedMotion();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
 
   // --- Act I: cards ---
   const actOneRef = useRef<HTMLDivElement>(null);
@@ -71,29 +103,42 @@ export default function SimulationsSection() {
   const imageWrapRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  useLayoutEffect(() => {
-    // Measures the cards' true resting (grid) position at the earliest,
-    // most reliable possible moment: on mount, before the browser paints,
-    // before any scroll has happened and before any scroll-driven JS has
-    // ever touched these elements. Measuring later (e.g. lazily on the
-    // first scroll-triggered frame) risks catching the cards mid-way
-    // through entering the viewport — before the sticky container has
-    // actually engaged — which locks in a bogus position and makes them
-    // render off-screen for the whole approach phase.
-    const captureStartRects = () => {
-      cardRefs.current.forEach((el, i) => {
-        if (!el) return;
-        el.style.position = "";
-        el.style.top = "";
-        el.style.left = "";
-        el.style.width = "";
-        el.style.height = "";
-        el.style.margin = "";
-        const r = el.getBoundingClientRect();
-        startRects.current[i] = { top: r.top, left: r.left, width: r.width, height: r.height };
-      });
-    };
+  // Measures each card's resting (grid) position *relative to the sticky
+  // container*, not to the viewport. Viewport coordinates captured on mount
+  // describe where the cards sit while the section is still far down the
+  // page, so replaying them as `fixed` coordinates once the section is
+  // pinned drops the cards hundreds of pixels below the fold. The offset
+  // inside the sticky container, on the other hand, is a layout fact: it
+  // stays valid at any scroll position, and adding the container's live
+  // top/left back in gives the correct fixed position on every frame —
+  // i.e. exactly centred under the title while the section is pinned.
+  const captureStartRects = useCallback(() => {
+    const sticky = stickyRef.current;
+    if (!sticky) return;
 
+    // Two passes, and the order matters: every card has to be back in the
+    // flow *before* the first one is measured. Clearing and measuring in a
+    // single loop means card 0 is measured while cards 1-3 are still
+    // `fixed`, so the grid row only contains one item and reports a
+    // too-short height — which is why the cards came out different sizes.
+    cardRefs.current.forEach((el) => el && clearCardStyle(el));
+
+    const s = sticky.getBoundingClientRect();
+    const rects: Array<Rect | null> = cardRefs.current.map((el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top - s.top, left: r.left - s.left, width: r.width, height: r.height };
+    });
+
+    // Belt and braces: the grid already stretches every cell to the same
+    // box, so force a single size rather than letting a sub-pixel
+    // difference show up once the cards are absolutely positioned.
+    const w = Math.max(...rects.map((r) => r?.width ?? 0));
+    const h = Math.max(...rects.map((r) => r?.height ?? 0));
+    startRects.current = rects.map((r) => (r ? { ...r, width: w, height: h } : null));
+  }, []);
+
+  useLayoutEffect(() => {
     const setup = () => {
       if (!wrapperRef.current) return;
       const desktop = window.innerWidth >= 768;
@@ -104,7 +149,7 @@ export default function SimulationsSection() {
     setup();
     window.addEventListener("resize", setup);
     return () => window.removeEventListener("resize", setup);
-  }, []);
+  }, [captureStartRects]);
 
   useEffect(() => {
     if (reduced) return;
@@ -127,7 +172,16 @@ export default function SimulationsSection() {
       // could spike to an arbitrary value once clamped.
       const progress = scrollable > 50 ? Math.min(1, Math.max(0, -rect.top / scrollable)) : 0;
 
-      const cardsT = isDesktop ? Math.min(1, progress / CARDS_END) : progress;
+      const sticky = stickyRef.current;
+      if (!sticky) return;
+
+      // While the section is still at rest, re-measure: fonts and images
+      // finishing loading after mount move the grid, and a stale
+      // measurement would make the cards jump on the first frame.
+      if (progress <= 0.001) captureStartRects();
+      const stickyRect = sticky.getBoundingClientRect();
+
+      const cardsT = isDesktop ? Math.min(1, progress / COLUMN_END) : progress;
 
       const cardsFade = isDesktop
         ? 1 - Math.max(0, Math.min(1, (progress - CARDS_END) / (FADE_END - CARDS_END)))
@@ -174,9 +228,14 @@ export default function SimulationsSection() {
         const t = Math.max(0, Math.min(1, (cardsT - i * segment * 0.82) / (segment * 1.2)));
         const eased = 1 - Math.pow(1 - t, 3);
 
+        // start.top/left are offsets inside the sticky container; turn them
+        // back into viewport coordinates for `position: fixed`.
+        const startTop = stickyRect.top + start.top;
+        const startLeft = stickyRect.left + start.left;
+
         const targetTop = cardsTopStart + i * (badgeSize + colGap);
-        const top = start.top + (targetTop - start.top) * eased;
-        const left = start.left + (leftX - start.left) * eased;
+        const top = startTop + (targetTop - startTop) * eased;
+        const left = startLeft + (leftX - startLeft) * eased;
         const width = start.width + (badgeSize - start.width) * eased;
         const height = start.height + (badgeSize - start.height) * eased;
 
@@ -260,6 +319,10 @@ export default function SimulationsSection() {
           listening = false;
           window.removeEventListener("scroll", onScroll);
           window.removeEventListener("resize", onResize);
+          // No more frames will run, so hand the cards back to the normal
+          // flow rather than leaving them frozen as fixed elements
+          // floating over whatever section is now on screen.
+          cardRefs.current.forEach((el) => el && clearCardStyle(el));
         }
       },
       { rootMargin: "0px", threshold: 0 }
@@ -270,8 +333,9 @@ export default function SimulationsSection() {
       observer.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
+      cardRefs.current.forEach((el) => el && clearCardStyle(el));
     };
-  }, [reduced]);
+  }, [reduced, captureStartRects]);
 
   if (reduced) {
     return (
@@ -324,11 +388,11 @@ export default function SimulationsSection() {
   return (
     <>
       <section id="art-station" ref={wrapperRef} className="relative bg-white">
-        <div className="sticky top-0 h-svh w-full overflow-hidden">
+        <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* Act I: cards */}
           <div
             ref={actOneRef}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 py-8 md:px-12 md:py-10"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-start px-6 pt-[10vh] pb-8 md:px-12 md:pt-[11vh] md:pb-10"
           >
             <h2
               ref={titleRef}
@@ -355,9 +419,7 @@ export default function SimulationsSection() {
               then each caption fades in smoothly, one at a time,
               alternating a left column and a right column that flank the
               image (in the transparent margin either side of the actual
-              subject, measured from the PNG itself). Only "Navigation
-              tactile embarquée" gets a line + dot, since that part isn't
-              otherwise obvious. */}
+              subject, measured from the PNG itself). */}
           <div
             ref={actTwoRef}
             className="absolute inset-0 z-10 hidden items-center justify-center px-6 md:flex md:px-12"

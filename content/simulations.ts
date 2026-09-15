@@ -7,32 +7,31 @@ export type Simulation = {
   summary: string;
 };
 
-const LOREM_SHORT =
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut elit tellus, luctus nec ullamcorper mattis.";
-
 export const simulations: Simulation[] = [
   {
-    slug: "pilotage-avion",
-    title: "Pilotage d'avion",
+    slug: "airplane",
+    title: "Airplane",
     icon: "plane",
-    summary: LOREM_SHORT,
+    summary: "Pilot a Cessna or a commercial aircraft across iconic landscapes from around the world.",
   },
   {
-    slug: "pilotage-helicoptere",
-    title: "Pilotage d'hélicoptère",
+    slug: "helicopter",
+    title: "Helicopter",
     icon: "helicopter",
-    summary: LOREM_SHORT,
+    summary:
+      "Fly across open skies — the Grand Canyon, Manhattan, the French Alps or any landscape worldwide.",
   },
   {
-    slug: "course-automobile",
-    title: "Course automobile",
+    slug: "race-cars",
+    title: "Race Cars",
     icon: "car",
-    summary: LOREM_SHORT,
+    summary: "Take the wheel on legendary circuits, with force feedback restoring every g in real time.",
   },
   {
-    slug: "vol-de-drone",
-    title: "Vol de drone",
+    slug: "drone",
+    title: "Drone",
     icon: "drone",
-    summary: LOREM_SHORT,
+    summary:
+      "Embark on 360° drone videography across the world, through virtual reality and eye tracking.",
   },
 ];
