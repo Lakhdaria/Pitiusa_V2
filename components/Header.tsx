@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
-const links = [
-  { href: "#art-station", label: "L'Art Station" },
-  { href: "#histoire", label: "Histoire" },
-  { href: "#presse", label: "Presse" },
-  { href: "#contact", label: "Contact" },
-];
+// Trimmed to what the page still contains. #anatomie is deliberately absent:
+// on desktop that content lives inside the pinned sequence and has no
+// scrollable anchor of its own, so the link would go nowhere.
+const links = [{ href: "#art-station", label: "L'Art Station" }];
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -57,18 +55,18 @@ export default function Header() {
         }`}
       >
         <div
-          className={`flex w-full max-w-3xl items-center justify-between rounded-2xl border px-5 py-3 backdrop-blur-xl transition-all duration-500 md:px-7 ${
+          className={`flex w-full max-w-3xl items-center justify-between rounded-2xl border px-4 py-1.5 backdrop-blur-xl transition-all duration-500 md:px-6 ${
             scrolled
               ? "border-brass-dim/50 bg-surface/70 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
               : "border-brass-dim/25 bg-surface/35"
           }`}
         >
-          <a href="#" className="relative block h-11 w-11 shrink-0 md:h-14 md:w-14">
+          <a href="#" className="relative block h-8 w-8 shrink-0 md:h-10 md:w-10">
             <Image
               src="/logo/PITUSA Art  Station_logo Circular C (2).png"
               alt="Pitiusa Art Station"
               fill
-              sizes="56px"
+              sizes="40px"
               className="object-contain"
               priority
             />

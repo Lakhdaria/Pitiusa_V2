@@ -39,6 +39,10 @@ const annotations: Annotation[] = [
     title: "Oak and ash",
     text: "300-year-old oak wood and century-old ash, worked by hand.",
   },
+  {
+    title: "Curved wraparound screen",
+    text: "An unbroken field of view, free of glare and visible edges.",
+  },
 ];
 
 const ANN_COUNT = annotations.length;
@@ -46,6 +50,13 @@ const ANN_COUNT = annotations.length;
 // Alternating left/right placement: even index → left column, odd → right.
 // Each side stacks its own items in the order they appear.
 const SIDES: Array<"left" | "right"> = annotations.map((_, i) => (i % 2 === 0 ? "left" : "right"));
+// How many entries each column ends up holding — used to centre each
+// column vertically against the machine rather than hanging both from a
+// fixed offset near the top.
+const PER_SIDE = {
+  left: SIDES.filter((s) => s === "left").length,
+  right: SIDES.filter((s) => s === "right").length,
+};
 const SLOTS: number[] = (() => {
   const counts = { left: 0, right: 0 };
   return annotations.map((_, i) => {
@@ -63,6 +74,8 @@ const SLOTS: number[] = (() => {
 const SUBJECT_LEFT = 34.7;
 const SUBJECT_RIGHT = 65.3;
 
+const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
 // Resets a card to its natural grid position in the flow. Used both before
 // measuring and whenever the section isn't driving the animation, so a card
 // can never be left stranded at a stale `position: fixed` coordinate.
@@ -78,12 +91,20 @@ const clearCardStyle = (el: HTMLElement) => {
   el.querySelector<HTMLElement>(".card-root")?.classList.remove("card-col-layout");
 };
 
+// The closing statement, revealed one character at a time in act III.
+// Placeholder copy for now.
+const CLOSING_TEXT =
+  "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
+const CLOSING_CHARS = Array.from(CLOSING_TEXT);
+
 // Progress (0–1 across the whole pinned section, desktop only) boundaries
-// between the two acts.
-const COLUMN_END = 0.34; // cards have finished stacking into the column
-const CARDS_END = 0.42; // …they hold a beat, then the cross-fade begins
-const FADE_END = 0.48;
-const IMAGE_HOLD_END = 0.58; // image shown alone, full-width, before captions begin
+// between the three acts. All shifted down by the same factor when act III
+// was added, so each earlier phase keeps the exact scroll length it had.
+const COLUMN_END = 0.29; // cards have finished stacking into the column
+const CARDS_END = 0.36; // …they hold a beat, then the cross-fade begins
+const FADE_END = 0.41;
+const IMAGE_HOLD_END = 0.5; // image shown alone, full-width, before captions begin
+const ANN_END = 0.86; // all captions are out; act III takes over
 
 export default function SimulationsSection() {
   const reduced = useReducedMotion();
@@ -98,8 +119,12 @@ export default function SimulationsSection() {
 
   // --- Act II: image, captions alternate left/right ---
   const actTwoRef = useRef<HTMLDivElement>(null);
-  const anatomyTitleRef = useRef<HTMLHeadingElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const closingRef = useRef<HTMLDivElement>(null);
+  const charRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  // Last opacity written per character, so each frame only touches the few
+  // glyphs around the writing head instead of restyling the whole block.
+  const charState = useRef<number[]>([]);
   const imageWrapRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -142,7 +167,9 @@ export default function SimulationsSection() {
     const setup = () => {
       if (!wrapperRef.current) return;
       const desktop = window.innerWidth >= 768;
-      const h = desktop ? CARD_COUNT * 120 + ANN_COUNT * 110 + 160 : CARD_COUNT * 140 + 60;
+      // +200svh on desktop for act III (captions out, machine slides left,
+      // closing text writes itself).
+      const h = desktop ? CARD_COUNT * 120 + ANN_COUNT * 110 + 160 + 200 : CARD_COUNT * 140 + 60;
       wrapperRef.current.style.height = `${h}svh`;
       captureStartRects();
     };
@@ -190,7 +217,7 @@ export default function SimulationsSection() {
         ? Math.max(0, Math.min(1, (progress - CARDS_END) / (FADE_END - CARDS_END)))
         : 0;
       const annProgress = isDesktop
-        ? Math.max(0, Math.min(1, (progress - IMAGE_HOLD_END) / (1 - IMAGE_HOLD_END)))
+        ? Math.max(0, Math.min(1, (progress - IMAGE_HOLD_END) / (ANN_END - IMAGE_HOLD_END)))
         : 0;
 
       // Explicit visibility toggling (not just opacity) so an inactive act
@@ -254,12 +281,6 @@ export default function SimulationsSection() {
       if (!isDesktop) return;
 
       // --- Act II ---
-      const imageHoldT = Math.max(0, Math.min(1, (progress - FADE_END) / (IMAGE_HOLD_END - FADE_END)));
-      if (anatomyTitleRef.current) {
-        const titleOut = Math.max(0, Math.min(1, (annProgress - 0.04) / 0.05));
-        anatomyTitleRef.current.style.opacity = `${imageHoldT * (1 - titleOut)}`;
-      }
-
       const stage = stageRef.current;
       const imageWrap = imageWrapRef.current;
       if (!stage || !imageWrap) return;
@@ -270,10 +291,16 @@ export default function SimulationsSection() {
       const subjectLeftPx = imgLeft + (SUBJECT_LEFT / 100) * imgRect.width;
       const subjectRightPx = imgLeft + (SUBJECT_RIGHT / 100) * imgRect.width;
 
-      const rowH = 108;
-      const rowGap = 26;
+      // Bumped along with the type scale below: the reserved row box has
+      // to stay taller than a two-line title + two-line body, or entries
+      // start overlapping the one underneath.
+      const rowH = 126;
+      const rowGap = 22;
       const colGapFromImage = 24;
-      const topY = stageRect.height * 0.1;
+
+      // Act III progress, and the caption fade it drives.
+      const t3 = Math.max(0, Math.min(1, (progress - ANN_END) / (1 - ANN_END)));
+      const captionsOut = Math.max(0, Math.min(1, t3 / 0.18));
 
       annotations.forEach((a, i) => {
         const entry = entryRefs.current[i];
@@ -286,15 +313,46 @@ export default function SimulationsSection() {
         const appear = Math.min(1, t / 0.5);
         const rise = (1 - appear) * 16;
 
+        // Each column is centred on the stage's vertical midline — i.e. on
+        // the machine — so the captions read as one block flanking it
+        // instead of a stack starting near the top. Computed per side, so
+        // an odd number of entries still balances left against right.
+        const colH = PER_SIDE[side] * (rowH + rowGap) - rowGap;
+        const topY = (stageRect.height - colH) / 2;
+
         const x = side === "left" ? subjectLeftPx - colGapFromImage : subjectRightPx + colGapFromImage;
         const y = topY + slot * (rowH + rowGap) + rise;
 
-        entry.style.opacity = `${appear}`;
+        entry.style.opacity = `${appear * (1 - captionsOut)}`;
         entry.style.transform =
           side === "left"
             ? `translate3d(${x}px, ${y}px, 0) translate(-100%, 0)`
             : `translate3d(${x}px, ${y}px, 0) translate(0, 0)`;
       });
+
+      // --- Act III: machine steps aside, closing text writes itself ---
+      // The move only starts once the captions are fully gone (0.22 > 0.18):
+      // the caption coordinates are derived from the image's live bounding
+      // box, so anything that transforms the image would drag them with it.
+      const moveT = ease(Math.max(0, Math.min(1, (t3 - 0.22) / 0.3)));
+      imageWrap.style.transform = `translate3d(${(-moveT * window.innerWidth * 0.24).toFixed(
+        1
+      )}px, 0, 0) scale(${(1 - moveT * 0.18).toFixed(3)})`;
+
+      const closing = closingRef.current;
+      if (closing) {
+        closing.style.opacity = `${Math.max(0, Math.min(1, (t3 - 0.3) / 0.12))}`;
+        // One character per unit of scroll, with a short feather at the head
+        // so glyphs bleed in rather than snapping on.
+        const head = ((t3 - 0.34) / 0.56) * CLOSING_CHARS.length;
+        for (let i = 0; i < CLOSING_CHARS.length; i += 1) {
+          const v = Math.max(0, Math.min(1, (head - i) / 4));
+          if (charState.current[i] === v) continue;
+          charState.current[i] = v;
+          const span = charRefs.current[i];
+          if (span) span.style.opacity = `${v}`;
+        }
+      }
     };
 
     const onScroll = () => {
@@ -353,9 +411,6 @@ export default function SimulationsSection() {
           </div>
         </section>
         <section id="anatomie" className="relative bg-surface px-6 py-32 md:px-12 md:py-44">
-          <h2 className="mx-auto max-w-3xl text-center font-display text-4xl leading-tight text-bone md:text-6xl">
-            Chaque détail a une raison d&rsquo;être.
-          </h2>
           <div className="mx-auto mt-16 flex max-w-md flex-col gap-8">
             <div className="relative aspect-[1800/1013] w-full">
               <Image
@@ -379,6 +434,7 @@ export default function SimulationsSection() {
                 </li>
               ))}
             </ol>
+            <p className="font-display text-2xl leading-snug text-bone">{CLOSING_TEXT}</p>
           </div>
         </section>
       </>
@@ -425,21 +481,31 @@ export default function SimulationsSection() {
             className="absolute inset-0 z-10 hidden items-center justify-center px-6 md:flex md:px-12"
             style={{ opacity: 0, visibility: "hidden" }}
           >
-            <div ref={stageRef} className="relative mx-auto w-full max-w-4xl">
-              <h2
-                ref={anatomyTitleRef}
-                className="pointer-events-none absolute -top-16 left-0 right-0 text-center font-display text-3xl leading-tight text-bone md:text-5xl"
-                style={{ opacity: 0 }}
+            <div
+              ref={stageRef}
+              className="relative mx-auto flex w-full max-w-[min(72rem,125svh)] justify-center"
+            >
+              {/* Sized by HEIGHT, not by the stage width. The PNG carries ~35%
+                  transparent padding on each side (see SUBJECT_LEFT/RIGHT), so
+                  fitting the file to the stage only ever made the padding wide
+                  and the actual machine small. Driving it off the viewport
+                  height instead lets the subject fill the screen; the file
+                  overflows the stage horizontally, but that overflow is pure
+                  transparency — and it's the same padding the captions are
+                  positioned into, so they still land on the subject's edges.
+                  Centring is done by the flex parent, not `mx-auto`: auto
+                  margins collapse to zero once the element is wider than its
+                  container, so the whole overflow was landing on the right
+                  and the machine sat visibly off-centre. */}
+              <div
+                ref={imageWrapRef}
+                className="relative aspect-[1800/1013] h-[90svh] w-auto max-w-none shrink-0"
               >
-                Chaque détail a une raison d&rsquo;être.
-              </h2>
-
-              <div ref={imageWrapRef} className="relative mx-auto aspect-[1800/1013] w-full">
                 <Image
                   src="/images/front-detail-transp-v2.png"
                   alt="Vue de face du poste de pilotage de la Pitiusa Art Station"
                   fill
-                  sizes="900px"
+                  sizes="1700px"
                   className="object-contain"
                 />
               </div>
@@ -450,13 +516,37 @@ export default function SimulationsSection() {
                   ref={(el) => {
                     entryRefs.current[i] = el;
                   }}
-                  className={`absolute left-0 top-0 w-60 ${SIDES[i] === "left" ? "text-right" : "text-left"}`}
+                  className={`absolute left-0 top-0 w-72 ${SIDES[i] === "left" ? "text-right" : "text-left"}`}
                   style={{ opacity: 0 }}
                 >
-                  <p className="font-display text-lg text-bone">{a.title}</p>
-                  <p className="mt-1.5 text-sm text-bone-dim">{a.text}</p>
+                  <p className="font-display text-xl text-bone">{a.title}</p>
+                  <p className="mt-2 text-base leading-snug text-bone-dim">{a.text}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Act III copy. Sits outside the stage so it can own the right
+                half of the viewport regardless of how wide the (overflowing)
+                image is. `whitespace-pre-wrap` keeps the spaces between the
+                per-character spans from collapsing. */}
+            <div
+              ref={closingRef}
+              className="pointer-events-none absolute right-[5vw] top-1/2 w-[42vw] max-w-[640px] -translate-y-1/2"
+              style={{ opacity: 0 }}
+            >
+              <p className="whitespace-pre-wrap font-display text-3xl leading-snug text-bone lg:text-4xl">
+                {CLOSING_CHARS.map((c, i) => (
+                  <span
+                    key={i}
+                    ref={(el) => {
+                      charRefs.current[i] = el;
+                    }}
+                    style={{ opacity: 0 }}
+                  >
+                    {c}
+                  </span>
+                ))}
+              </p>
             </div>
           </div>
         </div>
@@ -465,9 +555,6 @@ export default function SimulationsSection() {
       {/* Mobile: Act II becomes a plain static section right after the
           cards, instead of joining the pinned sequence. */}
       <section id="anatomie" className="relative bg-surface px-6 py-24 md:hidden">
-        <h2 className="mx-auto max-w-md text-center font-display text-3xl leading-tight text-bone">
-          Chaque détail a une raison d&rsquo;être.
-        </h2>
         <div className="mx-auto mt-10 flex max-w-md flex-col gap-8">
           <div className="relative aspect-[1800/1013] w-full">
             <Image
@@ -491,6 +578,7 @@ export default function SimulationsSection() {
               </li>
             ))}
           </ol>
+          <p className="font-display text-2xl leading-snug text-bone">{CLOSING_TEXT}</p>
         </div>
       </section>
     </>

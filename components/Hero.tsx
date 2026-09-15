@@ -174,7 +174,7 @@ export default function Hero() {
       <div className="relative z-10 flex h-full flex-col items-start justify-start px-6 pt-32 text-left md:px-12 md:pt-40">
         <h1
           ref={headlineRef}
-          className={`max-w-2xl font-display text-4xl leading-[1.05] md:text-6xl ${
+          className={`max-w-3xl font-display leading-[0.95] ${
             introDone ? "" : "transition-all duration-700 ease-out"
           } ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
           style={{
@@ -184,7 +184,10 @@ export default function Hero() {
             textShadow: "0 2px 28px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.25)",
           }}
         >
-          Discover Pitiusa Art Station
+          <span className="block text-6xl md:text-8xl">Discover</span>
+          <span className="mt-2 block text-3xl md:text-5xl" style={{ fontVariationSettings: "'wght' 340" }}>
+            Pitiusa Art Station
+          </span>
         </h1>
       </div>
     </section>
