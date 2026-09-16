@@ -28,8 +28,10 @@ const icons: Record<string, LucideIcon> = {
   drone: Drone,
 };
 
-const INTRO = "Behind every innovation lies an intuition";
-const HEADING = "Progress does not happen by chance. It is born from curiosity.";
+// Over the full-bleed photo…
+const IMAGE_LINE = "Progress does not happen by chance. It is born from curiosity.";
+// …and above the cards once it has pulled back.
+const CARDS_HEADING = "Behind every innovation lies an intuition";
 const RING_HEADING = ["Combining hand made", "with high-end technology"];
 const RING_TEXT =
   "Pitiusa offers the highest performing technological specificities to ensure a full immersive experience.";
@@ -37,25 +39,23 @@ const FINAL_TEXT =
   "Because true luxury does not lie in accessing what everyone desires. It lies in experiencing that exits only once. For you.";
 const FINAL_WORDS = FINAL_TEXT.split(" ");
 
-// Eight slots, 45° apart, offset by 22.5° so none sits dead centre at the
-// top or bottom — that offset is what gives the arrangement its two-up,
-// two-down, two-a-side reading. Screen angles: 0 is right, negative is up.
-const RING_ANGLES: Record<string, number> = {
-  plane: -157.5,
-  more: -112.5,
-  education: -67.5,
-  media: -22.5,
-  meditation: 22.5,
-  drone: 67.5,
-  car: 112.5,
-  helicopter: 157.5,
-};
-// The four already waiting on the ring, for the cards to come down and join.
+// The four icons carried over from the previous section: these are the
+// ones that fall from the sky.
 const JOINERS = ["plane", "helicopter", "car", "drone"] as const;
-// Left-to-right order of the staging row. The four waiting icons take the
-// even slots and the four falling cards the odd ones, so the cards land
-// interleaved with them rather than in a block of their own.
-const ROW_ORDER = ["plane", "meditation", "helicopter", "media", "car", "education", "drone", "more"];
+// Top-to-bottom order of the staging column, and therefore the order of
+// the train that runs out of it. The four older icons drop in from above
+// first, the four cards fold in underneath them.
+// Release order: the four older icons first, the four cards after.
+const COLUMN_ORDER = ["plane", "helicopter", "car", "drone", "meditation", "media", "education", "more"];
+// Where the train joins the circle, and how far each badge rides before
+// stopping. The leader goes all the way round, each following one stops a
+// slot earlier — which is what fills the circle evenly from a single
+// entry point. Final angles fall back out of this: -90 + arc.
+// Enters on the left, mid-height: far enough below the top edge that the
+// drop onto it is a real fall on screen, unlike an entry at the top of the
+// ellipse where there is barely any distance to cover.
+const ENTRY_ANGLE = 180;
+const ARCS = [337.5, 292.5, 247.5, 202.5, 157.5, 112.5, 67.5, 22.5];
 
 const BADGE = 84;
 // One entry per badge: amplitude, periods, phase, how fast it chases the
@@ -72,9 +72,6 @@ const FLOAT = [
   { amp: 5, periodX: 2700, periodY: 1900, phase: 2.0, lag: 0.065, leanX: 13, leanY: -16 },
   { amp: 7, periodX: 2000, periodY: 2200, phase: 3.3, lag: 0.045, leanX: -8, leanY: 12 },
 ];
-// The wheel has stopped by this point in the closing phase; whatever is
-// left is spent floating.
-const SPIN_END = 0.55;
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -87,14 +84,14 @@ const span = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 const PHASES = {
   appear: 30, // photo takes over from the previous section
   hold: 70, // full-bleed, opening line
-  zoom: 110, // pulls back, then rides up and out
-  cards: 150, // heading and cards arrive
+  zoom: 108, // pulls back, then rides up and out
+  cards: 146, // heading and cards arrive
   read: 70, // held still, time to read them
-  morph: 130, // cards become circles and drop into the row
-  ring: 120, // the eight peel off one by one onto the circle
-  spin: 150, // it turns, then floats; the closing copy appears
+  morph: 130, // the older icons fall in, the cards fold into the column
+  ring: 120, // the column runs out onto the circle like a train
+  spin: 146, // the circle holds and floats; the closing copy appears
   reveal: 130, // copy out, cockpit in, the circle widens around it
-  final: 170, // badges out, cockpit grows, closing line written
+  final: 168, // badges out, cockpit grows, closing line written
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -201,8 +198,6 @@ export default function IntuitionSection() {
     }
 
     const u2 = span(p, AT.zoom, AT.cards);
-    const u3 = span(p, AT.read, AT.morph);
-    const u4 = span(p, AT.morph, AT.ring);
     const u5 = span(p, AT.ring, AT.spin);
     const u6 = span(p, AT.spin, AT.reveal);
     const u7 = span(p, AT.reveal, 1);
@@ -222,11 +217,11 @@ export default function IntuitionSection() {
       headingRef.current.style.transform = `translate3d(0, ${((1 - a) * 24).toFixed(1)}px, 0)`;
     }
 
-    // --- Row, then ring ---------------------------------------------
-    // Three staged moves: the four cards drop into the row the other four
-    // icons already occupy, the eight then peel off one by one onto the
-    // circle, and only then does the whole thing turn.
-    const spin = 360 * ease(Math.min(1, u5 / SPIN_END));
+    // --- The circuit --------------------------------------------------
+    // No global rotation: once the circuit has filled the circle, the
+    // badges hold their places. From there they only drift and lean to
+    // the cursor.
+    const spin = 0;
     const cx = sw / 2;
     const cy = sh / 2;
     // The circle opens out as the cockpit takes the middle, so the badges
@@ -237,40 +232,36 @@ export default function IntuitionSection() {
       const a = ((angle + spin) * Math.PI) / 180;
       return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) };
     };
-    // The row the cards come down to meet: eight evenly spaced slots,
-    // centred, at the height the four waiting icons sit at.
-    const step = BADGE + 24;
-    const rowPos = (k: number) => ({ x: cx + (k - (ROW_ORDER.length - 1) / 2) * step, y: sh * 0.6 });
+    // One badge at a time, each doing the full circuit: it drops in at the
+    // entry point on the left, rides round the ellipse, and parks. The
+    // staging column is gone — with eight slots spread over the viewport
+    // height, most badges had almost no distance to fall and the drop
+    // never read as one.
+    const U = span(p, AT.read, AT.ring);
+    const SLOT_W = 0.115; // one badge's whole sequence
+    const SLOT_GAP = 0.105; // …and the wait before the next is released
 
-    const joinersIn = ease(Math.min(1, u3 / 0.2));
     const next: Base[] = [];
 
-    // Card entrance, and the box each one morphs out of.
-    const cardState: Array<{ raw: number } | null> = [];
     experiences.forEach((experience, i) => {
       const card = cardRefs.current[i];
-      if (!card) {
-        cardState.push(null);
-        return;
-      }
-      // Entrance: staggered arrival, each card sliding in from its left.
-      // The window is shorter than the gap between two starts, so the four
-      // read as arriving one after another instead of fading up together.
-      const enter = ease(clamp((u2 - 0.3 - i * 0.16) / 0.15));
-      card.style.transform = `translate3d(${((1 - enter) * -60).toFixed(1)}px, 0, 0)`;
-
-      // One at a time: the gap between two drops is wider than the fall
-      // itself, so a badge has landed before the next one is released.
-      const st = 0.08 + i * 0.17;
-      const raw = clamp((u3 - st) / 0.26);
-      cardState.push({ raw });
-
-      // Its card goes as the badge is released — the icon reads as having
-      // left the card and come back down from above.
-      card.style.opacity = `${enter * (1 - clamp((u3 - st) / 0.06))}`;
+      if (!card) return;
+      // Mirror of the first set: these come in from off the left-hand end
+      // of the row, the rightmost card released first and crossing the
+      // whole row, each later one stopping short of it. The offset is a
+      // whole number of slots so the travel distances differ and the order
+      // reads; a fixed nudge would look like four cards twitching.
+      const slotW = (card.offsetWidth || 0) + 16;
+      const enter = ease(clamp((u2 - 0.3 - (experiences.length - 1 - i) * 0.16) / 0.15));
+      card.style.transform = `translate3d(${(-(1 - enter) * (i + 1) * slotW).toFixed(1)}px, 0, 0)`;
+      // Cut as its own badge is released — the icon reads as having left
+      // the card. The cards go after the four older icons, so their
+      // release slots are 4 to 7.
+      const st = (i + 4) * SLOT_GAP;
+      card.style.opacity = `${enter * (1 - clamp((U - st) / 0.05))}`;
     });
 
-    ROW_ORDER.forEach((key, k) => {
+    COLUMN_ORDER.forEach((key, k) => {
       const cardIndex = experiences.findIndex((e) => e.icon === key);
       const isCard = cardIndex !== -1;
       const el = isCard
@@ -278,47 +269,46 @@ export default function IntuitionSection() {
         : joinerRefs.current[JOINERS.indexOf(key as (typeof JOINERS)[number])];
       if (!el) return;
 
-      const row = rowPos(k);
-      const ring = ringPos(RING_ANGLES[key]);
-      // Row → circle, one badge at a time, left to right.
-      const tr = ease(clamp((u4 - k * 0.08) / 0.24));
+      const t = clamp((U - k * SLOT_GAP) / SLOT_W);
+      const entry = ringPos(ENTRY_ANGLE);
 
-      let x = row.x;
-      let y = row.y;
-      let w = BADGE;
-      let h = BADGE;
-      let r = BADGE / 2;
+      // Falls onto the entry point: accelerating, then eased over the last
+      // stretch with a short damped rebound, so it settles rather than
+      // stopping dead at full speed.
+      const f = clamp(t / 0.34);
+      const fall = f < 0.8 ? f * f : 0.64 + 0.36 * (1 - Math.pow(1 - (f - 0.8) / 0.2, 2));
+      const rebound = f > 0.84 && f < 1 ? -12 * Math.sin(((f - 0.84) / 0.16) * Math.PI) : 0;
 
-      if (isCard) {
-        const st = cardState[cardIndex];
-        if (!st) return;
-        // Dropped in from above the viewport, straight down, on an
-        // accelerating curve — gravity, not a tween — with a short damped
-        // rebound at the end so it settles instead of sticking on impact.
-        const fall = st.raw * st.raw;
-        const rebound = st.raw > 0.82 ? -14 * Math.sin(((st.raw - 0.82) / 0.18) * Math.PI) : 0;
-        x = row.x;
-        y = -BADGE + (row.y + BADGE) * fall + rebound;
-        el.style.opacity = `${st.raw > 0 ? 1 - badgesOut : 0}`;
-      } else {
-        el.style.opacity = `${joinersIn * (1 - badgesOut)}`;
-      }
+      // Then rides the circuit. The leader goes furthest round and each
+      // follower stops a slot earlier, so the circle fills from a single
+      // entry point — and since the next badge is only released once this
+      // one has parked, they never share the track.
+      const ride = ease(clamp((t - 0.34) / 0.66));
+      const travelled = ARCS[k] * ride;
+      const onPath = ringPos(ENTRY_ANGLE + travelled);
 
-      // Whatever the badge's own state, the move onto the circle is the
-      // same blend for all eight — so the four that came down and the four
-      // that were waiting behave identically from here on.
-      x += (ring.x - x) * tr;
-      y += (ring.y - y) * tr;
-      w += (BADGE - w) * tr;
-      h += (BADGE - h) * tr;
-      r += (BADGE / 2 - r) * tr;
+      const x = ride > 0 ? onPath.x : entry.x;
+      const y = ride > 0 ? onPath.y : -BADGE + (entry.y + BADGE) * fall + rebound;
 
-      next.push({ el, x: x - w / 2, y: y - h / 2, w, h, r, rot: spin * tr });
+      el.style.opacity = `${t > 0 ? 1 - badgesOut : 0}`;
+      next.push({
+        el,
+        x: x - BADGE / 2,
+        y: y - BADGE / 2,
+        w: BADGE,
+        h: BADGE,
+        r: BADGE / 2,
+        // Turns as it travels, so the circuit reads as rolling rather than
+        // sliding, then straightens up over the last stretch so it parks
+        // upright instead of keeping the angle it arrived at.
+        rot: travelled * (1 - clamp((ride - 0.8) / 0.2)) + spin,
+      });
     });
 
     bases.current = next;
     // Only once the wheel has come to rest does the idle motion take over.
-    floatAmount.current = ease(clamp((u5 - SPIN_END) / 0.12));
+    // The idle drift takes over as soon as the last badge has parked.
+    floatAmount.current = ease(clamp(u5 / 0.15));
 
     // The cockpit is centred on the screen while it's alone inside the
     // ring, then recentred into the band left free under the closing line
@@ -428,7 +418,7 @@ export default function IntuitionSection() {
   const staticBlock = (
     <>
       <h2 className="mx-auto mt-16 max-w-4xl text-center font-display text-3xl leading-tight text-bone md:text-5xl">
-        {HEADING}
+        {CARDS_HEADING}
       </h2>
       <div className="mx-auto mt-12 grid max-w-6xl gap-6 sm:grid-cols-2 md:grid-cols-4">
         {experiences.map((experience) => (
@@ -483,7 +473,7 @@ export default function IntuitionSection() {
       <section
         id="intuition"
         ref={wrapperRef}
-        className="relative hidden h-[1230svh] md:-mt-[100svh] md:block"
+        className="relative hidden h-[1218svh] md:-mt-[100svh] md:block"
       >
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* Same white mount and corner radii as the hero, so the photo
@@ -517,7 +507,7 @@ export default function IntuitionSection() {
                 textShadow: "0 2px 28px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.25)",
               }}
             >
-              {INTRO}
+              {IMAGE_LINE}
             </h2>
           </div>
 
@@ -527,7 +517,7 @@ export default function IntuitionSection() {
               className="mx-auto max-w-4xl text-center font-display text-3xl leading-tight text-bone lg:text-5xl"
               style={{ opacity: 0 }}
             >
-              {HEADING}
+              {CARDS_HEADING}
             </h2>
             <div className="mx-auto mt-6 grid max-w-6xl grid-cols-4 gap-4">
               {experiences.map((experience, i) => (
@@ -661,7 +651,7 @@ export default function IntuitionSection() {
           className="mt-8 font-display text-3xl leading-[1.05]"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
-          {INTRO}
+          {IMAGE_LINE}
         </p>
         {staticBlock}
       </section>

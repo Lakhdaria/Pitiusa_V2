@@ -15,6 +15,10 @@ export default function Hero() {
   const headlineRef = useRef<HTMLHeadingElement>(null);
   const [mounted, setMounted] = useState(false);
   const [introDone, setIntroDone] = useState(false);
+  // Written by the scroll handler, read by the parallax loop: both want the
+  // same element's transform, so the loop composes them instead of the two
+  // overwriting each other frame by frame.
+  const photoScale = useRef(1.08);
 
   // Drive the load-in sequence from React state rather than a named
   // @keyframes animation, so it never silently breaks if the keyframes
@@ -73,7 +77,7 @@ export default function Hero() {
       if (parallaxRef.current) {
         parallaxRef.current.style.transform = `translate3d(${curX.toFixed(
           2
-        )}px, ${curY.toFixed(2)}px, 0) scale(1.08)`;
+        )}px, ${curY.toFixed(2)}px, 0) scale(${photoScale.current.toFixed(3)})`;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -105,10 +109,11 @@ export default function Hero() {
     };
   }, [reduced, isDesktop]);
 
-  // As the hero scrolls out: the headline simply fades away, and the
-  // whole framed photo shrinks gently toward the centre and dissolves —
-  // a soft, cinematic exit rather than an abrupt cut. Fully reversible
-  // since it's driven continuously by scroll position either way.
+  // As the hero scrolls out, the same two-stage exit the intuition section
+  // uses: the headline goes first, then the framed photo pulls back from
+  // full-bleed into a smaller plate — the mount closing in while the photo
+  // itself scales down inside it, which is what reads as a pull-back rather
+  // than a crop — and finally rides up and out of the viewport.
   const onProgress = useCallback((progress: number) => {
     const headline = headlineRef.current;
     const frame = frameRef.current;
@@ -117,21 +122,44 @@ export default function Hero() {
     // 0.5 as the resting, fully-visible baseline and only animate from
     // there as the section actually scrolls away.
     const fade = Math.max(0, Math.min(1, (progress - 0.5) / 0.5));
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const zoom = ease(Math.min(1, fade / 0.55));
+    const exit = ease(Math.max(0, Math.min(1, (fade - 0.45) / 0.55)));
 
     if (headline) {
-      // Opacity only. The headline used to shrink and drift as it left,
-      // which read as the text being pushed away rather than fading out,
-      // and the inline transform also overrode the class-driven entrance
-      // translate. Leaving transform untouched keeps the two effects from
-      // fighting each other.
-      headline.style.opacity = `${Math.max(0, 1 - fade * 3.4)}`;
+      // Driven by the pull-back curve itself, not by a separate rate. The
+      // two used to run on unrelated timings — the text was long gone
+      // while the photo had barely started moving — so the exit read as
+      // two unrelated events instead of one. Now the headline is exactly
+      // as faded as the plate is pulled back, and it's gone the moment the
+      // pull-back completes, leaving the rise to play on its own.
+      headline.style.opacity = `${1 - zoom}`;
+      // …and slides out to the right as it goes, on the same curve. The
+      // entrance translate is class-driven and has long finished by the
+      // time this runs, so writing transform here can't fight it.
+      headline.style.transform = `translate3d(${(zoom * 140).toFixed(1)}px, 0, 0)`;
     }
     if (frame) {
-      const scale = 1 - fade * 0.22;
-      frame.style.transform = `scale(${scale.toFixed(3)})`;
-      frame.style.opacity = `${Math.max(0, 1 - fade * 1.15)}`;
+      const vh = window.innerHeight;
+      const topInset = zoom * 0.04 * vh;
+      const bottomInset = zoom * 0.28 * vh;
+      frame.style.top = `${topInset.toFixed(1)}px`;
+      frame.style.bottom = `${bottomInset.toFixed(1)}px`;
+      frame.style.left = `${(zoom * 5).toFixed(2)}vw`;
+      frame.style.right = `${(zoom * 5).toFixed(2)}vw`;
+      const frameH = vh - topInset - bottomInset;
+      frame.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(
+        1
+      )}px, 0)`;
+      frame.style.opacity = `${1 - exit}`;
     }
-  }, []);
+    // 1.08 is the photo's resting scale (it's oversized so the cursor
+    // parallax has room to drift without exposing an edge).
+    photoScale.current = 1.08 - zoom * 0.14 - exit * 0.1;
+    if (parallaxRef.current && (reduced || !isDesktop)) {
+      parallaxRef.current.style.transform = `scale(${photoScale.current.toFixed(3)})`;
+    }
+  }, [reduced, isDesktop]);
 
   const sectionRef = useScrollProgress<HTMLElement>({
     onProgress,

@@ -10,34 +10,46 @@ const links = [{ href: "#art-station", label: "L'Art Station" }];
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [past, setPast] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Once the header has been put away, scrolling back up no longer brings
+  // it back on its own — the page stays clear and the bar only returns
+  // when the tab below is tapped.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
-    let lastY = window.scrollY;
     let ticking = false;
     const onScroll = () => {
-      if (!ticking) {
-        ticking = true;
-        requestAnimationFrame(() => {
-          const y = window.scrollY;
-          setScrolled(y > 24);
-          if (!menuOpen) {
-            if (y > lastY && y > 120) {
-              setHidden(true);
-            } else if (y < lastY) {
-              setHidden(false);
-            }
-          }
-          lastY = y;
-          ticking = false;
-        });
-      }
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        setScrolled(y > 24);
+        if (!menuOpen) {
+          setPast(y > 120);
+        }
+        ticking = false;
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [menuOpen]);
+
+  // Any downward move re-hides a header that was pulled open by the tab.
+  useEffect(() => {
+    if (!revealed) return;
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y > lastY + 4) setRevealed(false);
+      lastY = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [revealed]);
+
+  const hidden = past && !revealed && !menuOpen;
 
   // Lock background scroll while the full-screen menu is open.
   useEffect(() => {
@@ -110,6 +122,29 @@ export default function Header() {
           </button>
         </div>
       </header>
+
+      {/* The handle. Sibling of <header> for the same reason as the menu
+          overlay below: the header carries a transform, which would make it
+          the containing block for anything fixed inside it. */}
+      <button
+        type="button"
+        aria-label="Afficher le menu"
+        onClick={() => setRevealed(true)}
+        className={`fixed left-1/2 top-0 z-50 flex h-6 w-14 -translate-x-1/2 items-end justify-center rounded-b-xl border border-t-0 border-brass-dim/40 bg-surface/70 pb-1 backdrop-blur-xl transition-all duration-300 ease-out ${
+          hidden ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0"
+        }`}
+      >
+        <svg width="14" height="8" viewBox="0 0 14 8" fill="none" aria-hidden="true">
+          <path
+            d="M1 1.5 7 6.5 13 1.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-bone-dim"
+          />
+        </svg>
+      </button>
 
       {/* Rendered as a sibling of <header>, not a child: a transform on an
           ancestor (our hide/show translate) would otherwise turn it into

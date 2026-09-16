@@ -122,13 +122,13 @@ const CLOSING_LENGTH =
 // hand-recomputing a set of fractions that have to stay consistent with
 // the section's own height.
 const PHASES = {
-  entry: 90, // cards arrive one by one, right to left
-  cards: CARD_COUNT * 70, // cards stack into the column
-  hold: 25, // …and hold a beat
-  fade: 35, // cross-fade to the machine
-  image: 35, // machine alone on screen
-  captions: ANN_COUNT * 70, // captions come in one by one
-  closing: 210, // act III: machine steps aside, text writes itself, all exits
+  entry: 86, // cards arrive one by one, right to left
+  cards: CARD_COUNT * 66, // cards stack into the column
+  hold: 26, // …and hold a beat
+  fade: 36, // cross-fade to the machine
+  image: 36, // machine alone on screen
+  captions: ANN_COUNT * 66, // captions come in one by one
+  closing: 200, // act III: machine steps aside, text writes itself, all exits
 };
 const SCROLL_SVH = Object.values(PHASES).reduce((a, b) => a + b, 0);
 
@@ -341,12 +341,20 @@ export default function SimulationsSection() {
         // cardsFade takes the icons out for act II; badgesBack brings the
         // same elements straight back once the machine has moved left, so
         // the higher of the two wins.
-        // Entrance: staggered from the rightmost card to the leftmost, each
-        // sliding in from its own right. Reversed index, and a window
-        // shorter than the gap between starts, so the order is legible
-        // instead of four cards fading up at once.
-        const entry = ease(Math.max(0, Math.min(1, (entryT - (CARD_COUNT - 1 - i) * 0.2) / 0.4)));
-        el.style.transform = `translate3d(${((1 - entry) * 70).toFixed(1)}px, 0, 0)`;
+        // Entrance: each card enters from off the right-hand end of the row
+        // and slides left into its slot. The offset is a whole number of
+        // slots, not a fixed nudge — so the first one released crosses the
+        // full row to the far left and every later one stops short of it,
+        // which is what makes the order readable. A constant 70px offset
+        // looked like four cards twitching into place.
+        const slotW =
+          startRects.current[1] && startRects.current[0]
+            ? startRects.current[1]!.left - startRects.current[0]!.left
+            : start.width + 24;
+        const entry = ease(Math.max(0, Math.min(1, (entryT - i * 0.2) / 0.4)));
+        el.style.transform = `translate3d(${((1 - entry) * (CARD_COUNT - i) * slotW).toFixed(
+          1
+        )}px, 0, 0)`;
         el.style.opacity = `${Math.max(cardsFade * approach * entry, badgesBack) * (1 - exit)}`;
         const inner = el.querySelector<HTMLElement>(".card-root");
         // Flipped almost immediately rather than at the midpoint: the title
