@@ -154,8 +154,13 @@ export default function Hero() {
       frame.style.opacity = `${1 - exit}`;
     }
     // 1.08 is the photo's resting scale (it's oversized so the cursor
-    // parallax has room to drift without exposing an edge).
-    photoScale.current = 1.08 - zoom * 0.14 - exit * 0.1;
+    // parallax has room to drift without exposing an edge). It must never
+    // go below 1: the photo would then be smaller than its rounded
+    // window, and you'd see its own square corners with white around them
+    // — which is what made the frame look like it lost its rounding on
+    // the way out. The pull-back comes from the frame shrinking anyway;
+    // with object-cover the photo scales down with it.
+    photoScale.current = Math.max(1.01, 1.08 - zoom * 0.05 - exit * 0.04);
     if (parallaxRef.current && (reduced || !isDesktop)) {
       parallaxRef.current.style.transform = `scale(${photoScale.current.toFixed(3)})`;
     }

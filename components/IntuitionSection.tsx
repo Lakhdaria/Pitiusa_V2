@@ -28,8 +28,9 @@ const icons: Record<string, LucideIcon> = {
   drone: Drone,
 };
 
-// Over the full-bleed photo…
-const IMAGE_LINE = "Progress does not happen by chance. It is born from curiosity.";
+// Over the full-bleed photo, in two beats: the statement, then the answer
+// to it once the reader has scrolled on.
+const IMAGE_LINES = ["Progress does not happen by chance.", "It is born from curiosity."];
 // …and above the cards once it has pulled back.
 const CARDS_HEADING = "Behind every innovation lies an intuition";
 const RING_HEADING = ["Combining hand made", "with high-end technology"];
@@ -38,6 +39,19 @@ const RING_TEXT =
 const FINAL_TEXT =
   "Because true luxury does not lie in accessing what everyone desires. It lies in experiencing that exits only once. For you.";
 const FINAL_WORDS = FINAL_TEXT.split(" ");
+
+// Revealed one by one under the machine, left column then right, in the
+// order they're listed.
+const SPECS = [
+  "Advanced motion and force-feedback systems (4 actuators)",
+  "Ultrawide monitor, Dual QHD with 5120 x 1440 resolution",
+  "Integrated high fidelity 5.1 audio system",
+  "State-of-the-art simulation equipment onboard, easily interchangeable",
+  "Adjustable pedal mechanism (up to 240cm, 7.2 feet)",
+  "First class seating with Dinamica, suede aspect",
+  "Dimensions (288cm x 135cm x 122cm – 9.45ft, 4.43ft, 4ft)",
+  "Smart integrated ventilation circulation",
+];
 
 // The four icons carried over from the previous section: these are the
 // ones that fall from the sky.
@@ -92,6 +106,7 @@ const PHASES = {
   spin: 146, // the circle holds and floats; the closing copy appears
   reveal: 130, // copy out, cockpit in, the circle widens around it
   final: 168, // badges out, cockpit grows, closing line written
+  specs: 190, // line out, machine rises, the spec points come in
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -106,6 +121,7 @@ const AT = {
   ring: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring"),
   spin: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin"),
   reveal: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin", "reveal"),
+  final: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin", "reveal", "final"),
 };
 
 const INSET_SIDE = 5;
@@ -132,7 +148,7 @@ export default function IntuitionSection() {
   const stickyRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
-  const introRef = useRef<HTMLHeadingElement>(null);
+  const introRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -143,6 +159,8 @@ export default function IntuitionSection() {
   const cockpitRef = useRef<HTMLDivElement>(null);
   const finalTextRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const specsRef = useRef<HTMLDivElement>(null);
+  const specRefs = useRef<Array<HTMLLIElement | null>>([]);
   // Read off the file itself once it loads. The height cap depends on the
   // real ratio, and hard-coding one means the machine creeps back up into
   // the closing line the day the asset is swapped for another crop.
@@ -162,11 +180,17 @@ export default function IntuitionSection() {
     const sw = sticky.offsetWidth;
     const sh = sticky.offsetHeight;
 
-    if (introRef.current) {
-      introRef.current.style.opacity = `${
-        span(p, AT.appear * 0.4, AT.appear) * (1 - span(p, AT.hold, AT.hold + 0.02))
-      }`;
-    }
+    // Both lines clear together when the photo starts pulling back; only
+    // their arrivals are staggered.
+    const lineOut = 1 - span(p, AT.hold, AT.hold + 0.02);
+    const holdSpan = AT.hold - AT.appear;
+    // The second line replaces the first rather than joining it: the first
+    // clears as the second arrives.
+    const secondIn = span(p, AT.appear + holdSpan * 0.3, AT.appear + holdSpan * 0.55);
+    [span(p, AT.appear * 0.4, AT.appear) * (1 - secondIn), secondIn].forEach((a, i) => {
+      const el = introRefs.current[i];
+      if (el) el.style.opacity = `${a * lineOut}`;
+    });
 
     // Two chained moves on the same photo: it pulls back from full-bleed
     // into a framed plate, then keeps shrinking as it rides up and out of
@@ -194,13 +218,19 @@ export default function IntuitionSection() {
       // The frame shrinking would crop the shot tighter on its own, which
       // reads as a zoom *in*. Scaling the photo down inside it at the same
       // time is what actually pulls the subject back.
-      imageRef.current.style.transform = `scale(${(1.18 - zoom * 0.18 - exit * 0.14).toFixed(3)})`;
+      // Never below 1, or the photo stops covering its rounded window and
+      // its own square corners show against the white mount.
+      imageRef.current.style.transform = `scale(${Math.max(
+        1,
+        1.18 - zoom * 0.18 - exit * 0.1
+      ).toFixed(3)})`;
     }
 
     const u2 = span(p, AT.zoom, AT.cards);
     const u5 = span(p, AT.ring, AT.spin);
     const u6 = span(p, AT.spin, AT.reveal);
-    const u7 = span(p, AT.reveal, 1);
+    const u7 = span(p, AT.reveal, AT.final);
+    const u8 = span(p, AT.final, 1);
     const spread = ease(u6);
     // Badges leave first, so the cockpit is alone by the time it reaches
     // full size.
@@ -318,8 +348,24 @@ export default function IntuitionSection() {
     const textH = finalTextRef.current?.offsetHeight ?? 0;
     const bandTop = sh * 0.03 + textH + 20;
     const bandH = Math.max(140, sh - bandTop - sh * 0.02);
-    const availH = sh * 0.86 + (bandH - sh * 0.86) * textIn;
-    const centerY = sh / 2 + (bandTop + bandH / 2 - sh / 2) * textIn;
+    let availH = sh * 0.86 + (bandH - sh * 0.86) * textIn;
+    let centerY = sh / 2 + (bandTop + bandH / 2 - sh / 2) * textIn;
+
+    const sceneOut = ease(clamp((u8 - 0.9) / 0.1));
+
+    // Last move: the closing line goes, the machine rises into the top of
+    // the screen and the spec points fill the space it leaves. Same
+    // measured-band approach as before — the list's real height decides
+    // how much room the machine keeps, so a wrapping line can't push the
+    // two into each other.
+    const specsIn = ease(clamp(u8 / 0.35));
+    if (specsIn > 0) {
+      const specsH = specsRef.current?.offsetHeight ?? 0;
+      const sTop = sh * 0.04;
+      const sBand = Math.max(140, sh - sTop - specsH - sh * 0.08);
+      availH += (sBand - availH) * specsIn;
+      centerY += (sTop + sBand / 2 - centerY) * specsIn;
+    }
 
     if (cockpitRef.current) {
       const c = cockpitRef.current;
@@ -335,11 +381,11 @@ export default function IntuitionSection() {
       );
       c.style.width = `${w.toFixed(1)}px`;
       c.style.top = `${centerY.toFixed(1)}px`;
-      c.style.opacity = `${ease(clamp(u6 / 0.35))}`;
+      c.style.opacity = `${ease(clamp(u6 / 0.35)) * (1 - sceneOut)}`;
     }
 
     if (finalTextRef.current) {
-      finalTextRef.current.style.opacity = `${textIn}`;
+      finalTextRef.current.style.opacity = `${textIn * (1 - ease(clamp(u8 / 0.18)))}`;
     }
     // Word by word rather than one block: "progressively" has to be legible
     // as an order, and a whole paragraph cross-fading reads as a single
@@ -348,6 +394,17 @@ export default function IntuitionSection() {
     FINAL_WORDS.forEach((_, i) => {
       const el = wordRefs.current[i];
       if (el) el.style.opacity = `${clamp(head - i)}`;
+    });
+
+    // Spec points, one after another: left column top to bottom, then
+    // right. A block that fades up in one go gives the eye nowhere to
+    // start.
+    SPECS.forEach((_, i) => {
+      const el = specRefs.current[i];
+      if (!el) return;
+      const a = ease(clamp((u8 - 0.3 - i * 0.055) / 0.12)) * (1 - sceneOut);
+      el.style.opacity = `${a}`;
+      el.style.transform = `translate3d(0, ${((1 - a) * 14).toFixed(1)}px, 0)`;
     });
 
     if (ringTextRef.current) {
@@ -434,6 +491,14 @@ export default function IntuitionSection() {
       <p className="mx-auto mt-20 max-w-3xl text-center font-display text-xl leading-snug text-bone md:text-3xl">
         {FINAL_TEXT}
       </p>
+      <ul className="mx-auto mt-12 grid max-w-5xl gap-x-12 gap-y-3 sm:grid-cols-2">
+        {SPECS.map((spec) => (
+          <li key={spec} className="flex gap-3 text-sm leading-snug text-bone-dim">
+            <span className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-oak" />
+            {spec}
+          </li>
+        ))}
+      </ul>
       <Image
         src="/images/Pitiusa_Photos_00005f_transp.png"
         alt="Pitiusa Art Station vue de dessus"
@@ -473,7 +538,7 @@ export default function IntuitionSection() {
       <section
         id="intuition"
         ref={wrapperRef}
-        className="relative hidden h-[1218svh] md:-mt-[100svh] md:block"
+        className="relative hidden h-[1408svh] md:-mt-[100svh] md:block"
       >
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* Same white mount and corner radii as the hero, so the photo
@@ -497,17 +562,30 @@ export default function IntuitionSection() {
               </div>
             </div>
 
+            {/* An explicit width, not max-w: both lines are absolutely
+                positioned now, so the heading has no in-flow content to
+                size itself from — it collapsed to zero, and the text broke
+                one word per line. */}
             <h2
-              ref={introRef}
-              className="pointer-events-none absolute left-9 top-28 max-w-2xl font-display text-4xl leading-[1.05] md:left-12 md:top-40 md:text-6xl"
+              className="pointer-events-none absolute left-10 top-16 w-[min(40rem,72vw)] font-display text-4xl leading-[1.05] md:left-14 md:top-24 md:text-6xl"
               style={{
-                opacity: 0,
                 fontVariationSettings: "'wght' 380",
                 color: "#3d2410",
                 textShadow: "0 2px 28px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.25)",
               }}
             >
-              {IMAGE_LINE}
+              {IMAGE_LINES.map((line, i) => (
+                <span
+                  key={line}
+                  ref={(el) => {
+                    introRefs.current[i] = el;
+                  }}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ opacity: 0 }}
+                >
+                  {line}
+                </span>
+              ))}
             </h2>
           </div>
 
@@ -597,6 +675,28 @@ export default function IntuitionSection() {
             </p>
           </div>
 
+          {/* Spec points. Two columns, filled in reading order. */}
+          <div
+            ref={specsRef}
+            className="pointer-events-none absolute inset-x-0 bottom-[4svh] px-6 md:px-12"
+          >
+            <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-x-12 gap-y-3">
+              {SPECS.map((spec, i) => (
+                <li
+                  key={spec}
+                  ref={(el) => {
+                    specRefs.current[i] = el;
+                  }}
+                  className="flex gap-3 text-sm leading-snug text-bone-dim lg:text-base"
+                  style={{ opacity: 0 }}
+                >
+                  <span className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-oak" />
+                  {spec}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {/* The ring. Every badge is placed from JS in the sticky
               container's own coordinates — no nested rotating wrapper, so
               the travelling circles and the waiting ones share one and the
@@ -651,7 +751,7 @@ export default function IntuitionSection() {
           className="mt-8 font-display text-3xl leading-[1.05]"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
-          {IMAGE_LINE}
+          {IMAGE_LINES.join(" ")}
         </p>
         {staticBlock}
       </section>

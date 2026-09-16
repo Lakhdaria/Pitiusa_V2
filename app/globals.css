@@ -39,7 +39,11 @@ html {
 }
 
 body {
-  background: var(--color-ink);
+  /* Plain white rather than the cream ink: the hero and the intuition
+     photo sit in a white mount, and against a cream page that mount read
+     as a visible border around the image. The cards keep using bg-ink, so
+     they still lift off the page. */
+  background: #ffffff;
   color: var(--color-bone);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
