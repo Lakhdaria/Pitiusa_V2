@@ -16,6 +16,7 @@ import {
 import { experiences, type Experience } from "@/content/experiences";
 import { usePinnedProgress } from "@/lib/usePinnedProgress";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import SnapMarks from "./SnapMarks";
 
 const icons: Record<string, LucideIcon> = {
   meditation: Flower2,
@@ -30,7 +31,7 @@ const icons: Record<string, LucideIcon> = {
 
 // Over the full-bleed photo, in two beats: the statement, then the answer
 // to it once the reader has scrolled on.
-const IMAGE_LINES = ["Progress does not happen by chance.", "It is born from curiosity."];
+const IMAGE_LINES = ["Progress does not happen by chance", "It is born from curiosity"];
 // …and above the cards once it has pulled back.
 const CARDS_HEADING = "Behind every innovation lies an intuition";
 const RING_HEADING = ["Combining hand made", "with high-end technology"];
@@ -94,32 +95,66 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 // editing one number instead of re-deriving a set of fractions by hand.
 const PHASES = {
   appear: 20, // photo takes over from the previous section
-  hold: 48, // full-bleed, opening line
-  zoom: 73, // pulls back, then rides up and out
-  cards: 99, // heading and cards arrive
-  read: 48, // held still, time to read them
-  morph: 88, // the older icons fall in, the cards fold into the column
-  ring: 82, // the column runs out onto the circle like a train
-  spin: 99, // the circle holds and floats; the closing copy appears
-  reveal: 88, // copy out, cockpit in, the circle widens around it
-  final: 102, // badges out, the machine grows until it fills the screen
+  line1: 80, // full-bleed, the statement
+  line2: 80, // …replaced by the answer to it
+  zoom: 85, // pulls back, then rides up and out
+  cards: 130, // heading and cards arrive
+  read: 24, // a short run-up, not a crossing: the gesture stops on `cards`
+  morph: 110, // the older icons fall in, the cards fold into the column
+  ring: 100, // the column runs out onto the circle like a train
+  spin: 110, // the circle holds and floats; the closing copy appears
+  reveal: 100, // copy out, cockpit in, the circle widens around it
+  final: 115, // badges out, the machine grows until it fills the screen
   specs: 224, // it gives ground: closing line under it, then the specs
+  hold2: 90, // …and holds, so the line and the specs can be read
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
   keys.reduce((sum, k) => sum + PHASES[k], 0) / TOTAL;
 const AT = {
   appear: cum("appear"),
-  hold: cum("appear", "hold"),
-  zoom: cum("appear", "hold", "zoom"),
-  cards: cum("appear", "hold", "zoom", "cards"),
-  read: cum("appear", "hold", "zoom", "cards", "read"),
-  morph: cum("appear", "hold", "zoom", "cards", "read", "morph"),
-  ring: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring"),
-  spin: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin"),
-  reveal: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin", "reveal"),
-  final: cum("appear", "hold", "zoom", "cards", "read", "morph", "ring", "spin", "reveal", "final"),
+  line1: cum("appear", "line1"),
+  line2: cum("appear", "line1", "line2"),
+  zoom: cum("appear", "line1", "line2", "zoom"),
+  cards: cum("appear", "line1", "line2", "zoom", "cards"),
+  read: cum("appear", "line1", "line2", "zoom", "cards", "read"),
+  morph: cum("appear", "line1", "line2", "zoom", "cards", "read", "morph"),
+  ring: cum("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring"),
+  spin: cum("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring", "spin"),
+  reveal: cum("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring", "spin", "reveal"),
+  final: cum(
+    "appear",
+    "line1",
+    "line2",
+    "zoom",
+    "cards",
+    "read",
+    "morph",
+    "ring",
+    "spin",
+    "reveal",
+    "final"
+  ),
 };
+
+// Where a wheel gesture is allowed to stop inside this section: one per act
+// that has something to show. Three of these used to share a single gesture
+// — the copy inside the ring was written and cleared without ever coming to
+// rest. Summed from the budgets above so they can never drift apart.
+// How much of that last span is spent building the band rather than holding it.
+const BUILD = PHASES.specs / (PHASES.specs + PHASES.hold2);
+const S = (...keys: Array<keyof typeof PHASES>) => keys.reduce((n, k) => n + PHASES[k], 0);
+const SNAP_AT = [
+  S("appear", "line1"), // the statement
+  S("appear", "line1", "line2"), // …and the answer to it
+  S("appear", "line1", "line2", "zoom", "cards"), // the heading and the four cards
+  S("appear", "line1", "line2", "zoom", "cards", "read", "morph"), // folded into the column
+  S("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring"), // the circle closed
+  S("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring", "spin"), // the copy in it
+  TOTAL - PHASES.specs - PHASES.hold2 - PHASES.final, // the cockpit in the ring
+  TOTAL - PHASES.specs - PHASES.hold2, // the machine at full size
+  TOTAL - PHASES.hold2, // the closing line and the specs, written out
+];
 
 const INSET_SIDE = 5;
 const INSET_TOP = 4;
@@ -180,11 +215,12 @@ export default function IntuitionSection() {
 
     // Both lines clear together when the photo starts pulling back; only
     // their arrivals are staggered.
-    const lineOut = 1 - span(p, AT.hold, AT.hold + 0.02);
-    const holdSpan = AT.hold - AT.appear;
+    const lineOut = 1 - span(p, AT.line2, AT.line2 + 0.02);
     // The second line replaces the first rather than joining it: the first
-    // clears as the second arrives.
-    const secondIn = span(p, AT.appear + holdSpan * 0.3, AT.appear + holdSpan * 0.55);
+    // clears as the second arrives. The swap sits at the very start of
+    // `line2` so the gesture crossing into it lands with the new line
+    // already up — each line gets a stop, and is read standing still.
+    const secondIn = span(p, AT.line1, AT.line1 + (AT.line2 - AT.line1) * 0.3);
     [span(p, AT.appear * 0.4, AT.appear) * (1 - secondIn), secondIn].forEach((a, i) => {
       const el = introRefs.current[i];
       if (el) el.style.opacity = `${a * lineOut}`;
@@ -193,7 +229,7 @@ export default function IntuitionSection() {
     // Two chained moves on the same photo: it pulls back from full-bleed
     // into a framed plate, then keeps shrinking as it rides up and out of
     // the viewport, handing the screen over to the heading and cards.
-    const u = span(p, AT.hold, AT.zoom);
+    const u = span(p, AT.line2, AT.zoom);
     const zoom = ease(Math.min(1, u / 0.55));
     const exit = ease(clamp((u - 0.45) / 0.55));
 
@@ -228,7 +264,13 @@ export default function IntuitionSection() {
     const u5 = span(p, AT.ring, AT.spin);
     const u6 = span(p, AT.spin, AT.reveal);
     const u7 = span(p, AT.reveal, AT.final);
+    // The last stretch is two acts sharing one span: the band is built and
+    // written over `specs`, then `hold2` holds it still. `u8w` re-normalises
+    // to the building alone, so everything lands exactly when that budget
+    // runs out — the last spec points used to still be fading in while the
+    // scene was already fading out.
     const u8 = span(p, AT.final, 1);
+    const u8w = clamp(u8 / BUILD);
     const spread = ease(u6);
     // Badges leave first, so the cockpit is alone by the time it reaches
     // full size.
@@ -369,25 +411,32 @@ export default function IntuitionSection() {
     // The idle drift takes over as soon as the last badge has parked.
     floatAmount.current = ease(clamp(u5 / 0.15));
 
-    const sceneOut = ease(clamp((u8 - 0.92) / 0.08));
+    // On `u8`, not `u8w`: the clear-out waits for the hold, so the band is on
+    // screen complete and still for a whole gesture before anything fades.
+    const sceneOut = ease(clamp((u8 - 0.93) / 0.07));
 
     // --- The machine, the closing line, then the specs ----------------
     // It rises in from below the fold like the one in the section before,
     // grows until it fills the screen, and only then gives ground: the
-    // closing line takes a band under it, the spec points take another
-    // under that. Both bands are measured from the real blocks rather than
-    // guessed, so a line that wraps pushes the machine up instead of
-    // ending up behind it.
+    // closing line takes a band above it, the spec points one below. Both
+    // bands are measured from the real blocks rather than guessed, so a line
+    // that wraps shrinks the machine instead of ending up behind it.
     const enterT = ease(clamp(u6 / 0.55));
     const grow = ease(clamp(u7 / 0.7));
-    const give = ease(clamp(u8 / 0.4));
-    const textIn = ease(clamp((u8 - 0.22) / 0.2));
-    const specsIn = ease(clamp((u8 - 0.58) / 0.2));
+    const give = ease(clamp(u8w / 0.4));
+    const textIn = ease(clamp((u8w - 0.22) / 0.2));
+    const specsIn = ease(clamp((u8w - 0.58) / 0.2));
 
     const textH = finalTextRef.current?.offsetHeight ?? 0;
     const specsH = specsRef.current?.offsetHeight ?? 0;
     const topPad = sh * 0.035;
-    const reserved = (textH + 30) * textIn + (specsH + 26) * specsIn;
+    // The closing line heads the band and the specs close it, so the machine
+    // sits between them. Its band is carved out on `give` rather than on the
+    // line's own fade: everything above the machine has to be paid for before
+    // it settles, or it would slide down again as the words arrive.
+    const textBandH = (textH + 30) * give;
+    const specsBandH = (specsH + 26) * specsIn;
+    const reserved = textBandH + specsBandH;
 
     // Full-bleed at the end of `final`, then only as tall as what is left.
     const fullH = sh * (0.52 + 0.46 * grow);
@@ -395,7 +444,11 @@ export default function IntuitionSection() {
     const availH = mix(fullH, Math.min(fullH, bandH), give);
     const cockpitW = Math.min(sw * 0.98, availH * cockpitAspect.current);
     const cockpitH = cockpitW / cockpitAspect.current;
-    const centerY = mix(sh / 2, topPad + cockpitH / 2, give * (reserved > 0 ? 1 : 0));
+    const centerY = mix(
+      sh / 2,
+      topPad + textBandH + cockpitH / 2,
+      give * (reserved > 0 ? 1 : 0)
+    );
 
     if (cockpitRef.current) {
       const c = cockpitRef.current;
@@ -405,8 +458,8 @@ export default function IntuitionSection() {
       c.style.opacity = `${ease(clamp(u6 / 0.3)) * (1 - sceneOut)}`;
     }
 
-    // The closing line sits in the band directly under the machine…
-    const textTop = centerY + cockpitH / 2 + 30;
+    // The closing line heads the composition, above the machine…
+    const textTop = topPad;
     if (finalTextRef.current) {
       const t = finalTextRef.current;
       t.style.top = `${textTop.toFixed(1)}px`;
@@ -415,22 +468,22 @@ export default function IntuitionSection() {
     // …written word by word rather than in one block: "progressively" has
     // to be legible as an order, and a whole paragraph cross-fading reads
     // as a single switch.
-    const head = ((u8 - 0.26) / 0.28) * FINAL_WORDS.length;
+    const head = ((u8w - 0.26) / 0.28) * FINAL_WORDS.length;
     FINAL_WORDS.forEach((_, i) => {
       const el = wordRefs.current[i];
       if (el) el.style.opacity = `${clamp(head - i)}`;
     });
 
-    // …and the spec points in the band under the line, one after another:
+    // …and the spec points in the band under the machine, one after another:
     // left column top to bottom, then right. A block that fades up in one
     // go gives the eye nowhere to start.
     if (specsRef.current) {
-      specsRef.current.style.top = `${(textTop + textH + 26).toFixed(1)}px`;
+      specsRef.current.style.top = `${(centerY + cockpitH / 2 + 26).toFixed(1)}px`;
     }
     SPECS.forEach((_, i) => {
       const el = specRefs.current[i];
       if (!el) return;
-      const a = ease(clamp((u8 - 0.6 - i * 0.035) / 0.1)) * (1 - sceneOut);
+      const a = ease(clamp((u8w - 0.6 - i * 0.035) / 0.1)) * (1 - sceneOut);
       el.style.opacity = `${a}`;
       el.style.transform = `translate3d(0, ${((1 - a) * 14).toFixed(1)}px, 0)`;
     });
@@ -566,9 +619,11 @@ export default function IntuitionSection() {
       <section
         id="intuition"
         ref={wrapperRef}
+        data-snap
         className="relative hidden md:-mt-[100svh] md:block"
         style={{ height: `${TOTAL + 100}svh` }}
       >
+        <SnapMarks at={SNAP_AT} />
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* Same white mount and corner radii as the hero, so the photo
               lands in the frame the eye already knows from the top of the

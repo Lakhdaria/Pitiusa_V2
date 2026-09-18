@@ -7,6 +7,7 @@ import SimulationCard from "./SimulationCard";
 import { simulations } from "@/content/simulations";
 import { usePinnedProgress } from "@/lib/usePinnedProgress";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import SnapMarks from "./SnapMarks";
 
 const icons: Record<string, LucideIcon> = {
   plane: Plane,
@@ -130,11 +131,13 @@ const PHASES = {
   entry: 116, // cards arrive one by one, right to left
   hold: 31, // …and hold, nothing moving
   approach: 129, // the machine rises from below toward them
-  morph: 88, // they turn into bubbles; it keeps rising
-  join: 88, // it comes up to full size, its markers fade in
-  explore: 88, // held, so the markers can actually be hovered
-  rise: 122, // it carries on up and out of frame
-  closing: 163, // the copy comes in, line by line, centred
+  morph: 110, // they turn into bubbles; it keeps rising
+  join: 120, // it comes up to full size, its markers fade in
+  explore: 40, // a short run-up, not a crossing: the gesture stops at the
+  // end of `join`, with the markers already there to be hovered
+  rise: 150, // it carries on up and out of frame
+  closing: 190, // the copy comes in, line by line, centred
+  read: 90, // …and holds, so the block can actually be read
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -148,6 +151,22 @@ const AT = {
   explore: cum("entry", "hold", "approach", "morph", "join", "explore"),
   rise: cum("entry", "hold", "approach", "morph", "join", "explore", "rise"),
 };
+// How much of the final span is spent writing the copy rather than holding it.
+const WRITE = PHASES.closing / (PHASES.closing + PHASES.read);
+
+// Where a wheel gesture is allowed to stop inside this section. One beat per
+// gesture: the machine arriving, the cards turning and the markers landing
+// used to share a single one, which is what made the middle of the section a
+// blur. Summed from the budgets above so they can never drift apart.
+const S = (...keys: Array<keyof typeof PHASES>) => keys.reduce((n, k) => n + PHASES[k], 0);
+const SNAP_AT = [
+  S("entry", "hold"), // the cards settled
+  S("entry", "hold", "approach"), // the machine up under them
+  S("entry", "hold", "approach", "morph"), // …and they have turned into bubbles
+  S("entry", "hold", "approach", "morph", "join"), // full size, markers in — hover here
+  TOTAL - PHASES.closing - PHASES.read, // the machine gone
+  TOTAL - PHASES.read, // the copy written out in full
+];
 
 export default function SimulationsSection() {
   const reduced = useReducedMotion();
@@ -177,11 +196,18 @@ export default function SimulationsSection() {
     // so the machine jerked a hundred pixels upward on the first frame of
     // the rise instead of pulling away from a standstill.
     const riseT = uRise * uRise * (3 - 2 * uRise);
+    // The last stretch is two acts sharing one span: the copy is written
+    // over `closing`, then `read` holds it still. `uWrite` re-normalises to
+    // the writing alone, so the lines land exactly when the writing budget
+    // runs out however that budget is changed.
     const uClosing = span(p, AT.rise, 1);
+    const uWrite = clamp(uClosing / WRITE);
     // Everything clears over the last stretch, so the section that overlaps
     // this one's tail — and the photo that opens the next one — finds an
-    // empty screen.
-    const out = ease(clamp((uClosing - 0.86) / 0.14));
+    // empty screen. It waits for the read: the copy used to start fading
+    // before the gesture carrying it had come to rest, so the block was
+    // never on screen complete and still.
+    const out = ease(clamp((uClosing - 0.93) / 0.07));
 
     // --- Act I: the cards arrive, then hold ---------------------------
     simulations.forEach((_, i) => {
@@ -299,7 +325,7 @@ export default function SimulationsSection() {
     CLOSING_LINES.forEach((_, i) => {
       const el = lineRefs.current[i];
       if (!el) return;
-      const a = ease(clamp((uClosing - 0.08 - i * 0.12) / 0.16));
+      const a = ease(clamp((uWrite - 0.1 - i * 0.16) / 0.22));
       el.style.opacity = `${a * (1 - out)}`;
       el.style.transform = `translate3d(0, ${((1 - a) * 18).toFixed(1)}px, 0)`;
     });
@@ -366,9 +392,11 @@ export default function SimulationsSection() {
       <section
         id="art-station"
         ref={wrapperRef}
+        data-snap
         className="relative hidden md:block"
         style={{ height: `${TOTAL + 100}svh` }}
       >
+        <SnapMarks at={SNAP_AT} />
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           <h2
             ref={titleRef}

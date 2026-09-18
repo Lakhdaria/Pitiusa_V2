@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useRef } from "react";
 import { usePinnedProgress } from "@/lib/usePinnedProgress";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import SnapMarks from "./SnapMarks";
 
 // Shown one at a time, in this order, each clearing before the next.
 const BEATS = [
@@ -41,8 +42,29 @@ const AT = {
   beat3: cum("logo", "swap", "shrink", "beat1", "beat2", "beat3"),
 };
 
+// Where a wheel gesture is allowed to stop inside this section: the mark
+// turned green, the film in place, then each of the three beats read.
+const E = (...keys: Array<keyof typeof PHASES>) => keys.reduce((n, k) => n + PHASES[k], 0);
+// A beat is written over the first half of its budget and cleared over the
+// last fifth, so its gesture rests in between — at the end of the budget the
+// words have just been wiped, which is what made each beat something you
+// only ever caught mid-glide.
+const BEAT_REST = 0.7;
+const SNAP_AT = [
+  E("logo", "swap"),
+  E("logo", "swap", "shrink"),
+  E("logo", "swap", "shrink") + PHASES.beat1 * BEAT_REST,
+  E("logo", "swap", "shrink", "beat1") + PHASES.beat2 * BEAT_REST,
+  E("logo", "swap", "shrink", "beat1", "beat2") + PHASES.beat3 * BEAT_REST,
+];
+
 const LOGO_SMALL = 84;
 const CORNER = 40;
+
+// How far the film sits in from the edges of the screen: a share of the
+// height top and bottom, and vw either side. Raise them to shrink the plate.
+const FILM_INSET_Y = 0.12;
+const FILM_INSET_X = 16;
 
 export default function EcologySection() {
   const reduced = useReducedMotion();
@@ -78,8 +100,11 @@ export default function EcologySection() {
       // Centre of the mark, from the middle of the screen to the corner.
       const cxFrom = sw / 2;
       const cyFrom = sh / 2;
-      const cxTo = CORNER + LOGO_SMALL / 2;
-      const cyTo = CORNER + LOGO_SMALL / 2;
+      // The corner it settles into is the film's, not the screen's — now
+      // that the film is a plate, the screen's corner would strand the mark
+      // on the page background instead of on the footage.
+      const cxTo = (FILM_INSET_X / 100) * sw + CORNER + LOGO_SMALL / 2;
+      const cyTo = FILM_INSET_Y * sh + CORNER + LOGO_SMALL / 2;
       const x = cxFrom + (cxTo - cxFrom) * travel;
       const y = cyFrom + (cyTo - cyFrom) * travel;
       const l = logoRef.current;
@@ -101,12 +126,15 @@ export default function EcologySection() {
 
     if (filmRef.current) {
       const f = filmRef.current;
-      const topInset = zoom * 0.04 * sh;
-      const bottomInset = zoom * 0.28 * sh;
+      // A plate from the outset rather than full-bleed. The photographs open
+      // edge to edge because they are the subject; the film is the backdrop
+      // the copy is read against, and at full size it was the page.
+      const topInset = FILM_INSET_Y * sh;
+      const bottomInset = (FILM_INSET_Y + zoom * 0.1) * sh;
       f.style.top = `${topInset.toFixed(1)}px`;
       f.style.bottom = `${bottomInset.toFixed(1)}px`;
-      f.style.left = `${(zoom * 5).toFixed(2)}vw`;
-      f.style.right = `${(zoom * 5).toFixed(2)}vw`;
+      f.style.left = `${(FILM_INSET_X + zoom * 2).toFixed(2)}vw`;
+      f.style.right = `${(FILM_INSET_X + zoom * 2).toFixed(2)}vw`;
       const frameH = sh - topInset - bottomInset;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
       f.style.opacity = `${filmIn * (1 - exit)}`;
@@ -187,9 +215,11 @@ export default function EcologySection() {
           full screen of scrolling later, with nothing on it. */}
       <section
         ref={wrapperRef}
+        data-snap
         className="relative hidden md:-mt-[100svh] md:block"
         style={{ height: `${TOTAL + 100}svh` }}
       >
+        <SnapMarks at={SNAP_AT} />
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* The film, in the same white mount as the photographs. */}
           <div
@@ -232,7 +262,10 @@ export default function EcologySection() {
           {/* Copy, over the film. White rather than the brown used on the
               wood shots: on forest footage the brown disappears. */}
           <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 px-6 md:px-12">
-            <div className="relative mx-auto h-0 max-w-3xl">
+            {/* Capped against the plate's width, not just the page's: the
+                film no longer runs edge to edge, so a 48rem block would
+                overhang it on a narrower desktop. */}
+            <div className="relative mx-auto h-0 w-[min(48rem,58vw)]">
               {BEAT_WORDS.map((words, i) => (
                 <p
                   key={i}

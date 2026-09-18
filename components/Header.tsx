@@ -6,7 +6,10 @@ import Image from "next/image";
 // Trimmed to what the page still contains. #anatomie is deliberately absent:
 // on desktop that content lives inside the pinned sequence and has no
 // scrollable anchor of its own, so the link would go nowhere.
-const links = [{ href: "#art-station", label: "L'Art Station" }];
+const links = [
+  { href: "#art-station", label: "L'Art Station" },
+  { href: "#contact", label: "Contact" },
+];
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);

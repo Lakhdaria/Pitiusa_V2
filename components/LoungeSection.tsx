@@ -4,22 +4,34 @@ import Image from "next/image";
 import { useCallback, useRef } from "react";
 import { usePinnedProgress } from "@/lib/usePinnedProgress";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import SnapMarks from "./SnapMarks";
 
 // Two beats over the photo: the claim, then what it resolves into.
-const LINES = ["Pitiusa reminds how great ideas are born", "how excellence is built"];
+const LINES = ["Pitiusa reminds how great ideas are born", "How excellence is built"];
 
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 const span = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 
 // Budgeted in svh, like the other pinned sections: the 0–1 boundaries are
-// derived from these, so the pace is one number to change.
-const PHASES = { appear: 20, hold: 102, zoom: 95 };
-const TOTAL = PHASES.appear + PHASES.hold + PHASES.zoom;
+// derived from these, so the pace is one number to change. The two lines get
+// a budget each rather than sharing a `hold`: as one act they were crossed
+// in a single gesture, and the first line was only ever seen in passing.
+const PHASES = {
+  appear: 20, // the photo takes over
+  line1: 90, // the claim
+  line2: 90, // …and what it resolves into
+  zoom: 110, // pulls back, then rides up and out
+};
+const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const AT = {
   appear: PHASES.appear / TOTAL,
-  hold: (PHASES.appear + PHASES.hold) / TOTAL,
+  line1: (PHASES.appear + PHASES.line1) / TOTAL,
+  line2: (PHASES.appear + PHASES.line1 + PHASES.line2) / TOTAL,
 };
+
+// A stop per line, so each one is read standing still.
+const SNAP_AT = [PHASES.appear + PHASES.line1, PHASES.appear + PHASES.line1 + PHASES.line2];
 
 export default function LoungeSection() {
   const reduced = useReducedMotion();
@@ -34,10 +46,12 @@ export default function LoungeSection() {
     const sh = sticky.offsetHeight;
 
     // The second line replaces the first rather than joining it, and both
-    // clear together once the photo starts pulling back.
-    const holdSpan = AT.hold - AT.appear;
-    const lineOut = 1 - span(p, AT.hold, AT.hold + 0.02);
-    const secondIn = span(p, AT.appear + holdSpan * 0.32, AT.appear + holdSpan * 0.55);
+    // clear together once the photo starts pulling back. The swap happens at
+    // the very start of `line2`, so the gesture that crosses into it lands
+    // with the new line already up and held for the rest of its budget.
+    const swapSpan = (AT.line2 - AT.line1) * 0.3;
+    const lineOut = 1 - span(p, AT.line2, AT.line2 + 0.02);
+    const secondIn = span(p, AT.line1, AT.line1 + swapSpan);
     [span(p, AT.appear * 0.4, AT.appear) * (1 - secondIn), secondIn].forEach((a, i) => {
       const el = lineRefs.current[i];
       if (el) el.style.opacity = `${a * lineOut}`;
@@ -45,7 +59,7 @@ export default function LoungeSection() {
 
     // Same exit as the hero and the intuition photo: pull back into a
     // smaller plate, then ride up and out of the viewport.
-    const u = span(p, AT.hold, 1);
+    const u = span(p, AT.line2, 1);
     const zoom = ease(Math.min(1, u / 0.55));
     const exit = ease(clamp((u - 0.45) / 0.55));
 
@@ -92,7 +106,13 @@ export default function LoungeSection() {
           className="mt-10 font-display text-3xl leading-[1.05] md:text-5xl"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
-          {LINES.join(", ")}
+          {/* Stacked, not joined with a comma: the second line opens with a
+              capital, so run together they read as one broken sentence. */}
+          {LINES.map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
         </p>
       </section>
     );
@@ -107,9 +127,11 @@ export default function LoungeSection() {
           covers here has already faded out. */}
       <section
         ref={wrapperRef}
+        data-snap
         className="relative hidden md:-mt-[100svh] md:block"
         style={{ height: `${TOTAL + 100}svh` }}
       >
+        <SnapMarks at={SNAP_AT} />
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           <div
             ref={frameRef}
@@ -158,7 +180,13 @@ export default function LoungeSection() {
           className="mt-8 font-display text-3xl leading-[1.05]"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
-          {LINES.join(", ")}
+          {/* Stacked, not joined with a comma: the second line opens with a
+              capital, so run together they read as one broken sentence. */}
+          {LINES.map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
         </p>
       </section>
     </>
