@@ -17,8 +17,11 @@ const icons: Record<string, LucideIcon> = {
 };
 
 const CARD_COUNT = simulations.length;
-const BADGE = 88;
-const DOT = 34;
+// The bubble a card turns into, and the marker pinned to the machine. Both
+// shrink in portrait: 88px is a fifth of a phone's width, and four of them
+// across the screen is a wall.
+const BADGE = { wide: 88, portrait: 58 };
+const DOT = { wide: 34, portrait: 24 };
 const TITLE = "Where design, technology and luxury converge to shape excellence";
 
 // Two kinds. The ones that name a part of the machine are pinned to it —
@@ -186,6 +189,10 @@ export default function SimulationsSection() {
     if (!sticky) return;
     const sw = sticky.offsetWidth;
     const sh = sticky.offsetHeight;
+    // Measured rather than matched against a media query, so a rotation is
+    // picked up on the next frame without React having to track it.
+    const portrait = sw < 768;
+    const badge = portrait ? BADGE.portrait : BADGE.wide;
 
     const uEntry = span(p, 0, AT.entry);
     const uApproach = span(p, AT.hold, AT.approach);
@@ -217,9 +224,15 @@ export default function SimulationsSection() {
       // filling in behind it. The offset is a whole number of slots, so the
       // travel distances differ and the order reads; the window is shorter
       // than the gap between two starts for the same reason.
-      const slotW = card.offsetWidth + 28;
       const t = ease(clamp((uEntry - i * 0.2) / 0.4));
-      card.style.transform = `translate3d(${((1 - t) * (CARD_COUNT - i) * slotW).toFixed(1)}px, 0, 0)`;
+      if (portrait) {
+        // The row is a 2×2 block here, so there is no row to cross: they
+        // rise into place instead, in the same order and to the same beat.
+        card.style.transform = `translate3d(0, ${((1 - t) * 46).toFixed(1)}px, 0)`;
+      } else {
+        const slotW = card.offsetWidth + 28;
+        card.style.transform = `translate3d(${((1 - t) * (CARD_COUNT - i) * slotW).toFixed(1)}px, 0, 0)`;
+      }
 
       const off = offsetIn(card, sticky);
       boxes.current[i] = {
@@ -240,8 +253,16 @@ export default function SimulationsSection() {
     // Getting on for twice the height of the screen: it is meant to overrun
     // the frame rather than sit inside it, so the machine reads as full
     // scale rather than as a picture of one.
-    const mh = sh * 1.75;
-    const mw = mh * MACHINE_RATIO;
+    // Wide enough to overrun the frame rather than sit inside it, so it
+    // reads as full scale rather than as a picture of one. In portrait that
+    // has to be driven from the width: 1.75 screen-heights of a phone would
+    // be four screens wide.
+    // The subject fills barely a third of this file — the rest is transparent
+    // margin — so the multiplier has to be read against SUB_W, not against the
+    // canvas: 2.9 screen-widths of canvas puts the machine itself at about
+    // nine tenths of the screen.
+    const mw = portrait ? sw * 2.9 : sh * 1.75 * MACHINE_RATIO;
+    const mh = mw / MACHINE_RATIO;
     // The milestones are set on the subject's own top edge rather than on
     // the box's, because the file's transparent header is ~90px at this
     // size — aim the box at the row and the machine stops a long way short
@@ -249,7 +270,12 @@ export default function SimulationsSection() {
     const pad = SUB_T * mh;
     let top = mix(sh, rowBottom + 120 - pad, ease(uApproach));
     top = mix(top, rowBottom + 25 - pad, ease(uMorph));
-    top = mix(top, -sh * 0.24, ease(uJoin));
+    // Full size. On a wide screen the machine is taller than the viewport and
+    // is pushed up so its lower half runs off the bottom; in portrait it is
+    // far shorter than the screen, and the same lift would hang it from the
+    // top edge over an empty half-screen. There it centres instead.
+    const restTop = portrait ? sh / 2 - SUB_T * mh - (SUB_H * mh) / 2 : -sh * 0.24;
+    top = mix(top, restTop, ease(uJoin));
     top -= riseT * (sh * 1.7);
     const left = sw / 2 - mw / 2;
     // Where the machine actually begins on screen: what the bubbles and the
@@ -290,8 +316,8 @@ export default function SimulationsSection() {
       // it — start shrinking straight away and you see a smaller rounded
       // box appear inside the card it is supposed to be replacing.
       const m = ease(clamp((uMorph - 0.07 - i * 0.09) / 0.43));
-      const w = mix(box.w, BADGE, m);
-      const h = mix(box.h, BADGE, m);
+      const w = mix(box.w, badge, m);
+      const h = mix(box.h, badge, m);
 
       // Fades out over the 70px in which the machine's top edge crosses it.
       const contact = clamp((box.y + h / 2 + 10 - subjectTop) / 70);
@@ -299,7 +325,7 @@ export default function SimulationsSection() {
       el.style.opacity = `${alive}`;
       el.style.width = `${w.toFixed(1)}px`;
       el.style.height = `${h.toFixed(1)}px`;
-      el.style.borderRadius = `${mix(16, BADGE / 2, m).toFixed(1)}px`;
+      el.style.borderRadius = `${mix(16, badge / 2, m).toFixed(1)}px`;
       el.style.transform = `translate3d(${(box.x - w / 2).toFixed(1)}px, ${(box.y - h / 2).toFixed(
         1
       )}px, 0)`;
@@ -309,6 +335,7 @@ export default function SimulationsSection() {
     });
 
     // --- The markers on the machine ------------------------------------
+    const dot = portrait ? DOT.portrait : DOT.wide;
     const dotsIn = ease(clamp((uJoin - 0.55) / 0.45)) * (1 - clamp(riseT / 0.25));
     HOTSPOTS.forEach((hs, i) => {
       const el = dotRefs.current[i];
@@ -317,7 +344,9 @@ export default function SimulationsSection() {
       const y = hs.pinned ? top + (SUB_T + hs.fy * SUB_H) * mh : sh * hs.fy;
       const a = dotsIn * clamp((dotsIn - i * 0.04) * 6);
       el.style.opacity = `${a * (1 - out)}`;
-      el.style.transform = `translate3d(${(x - DOT / 2).toFixed(1)}px, ${(y - DOT / 2).toFixed(1)}px, 0)`;
+      el.style.width = `${dot}px`;
+      el.style.height = `${dot}px`;
+      el.style.transform = `translate3d(${(x - dot / 2).toFixed(1)}px, ${(y - dot / 2).toFixed(1)}px, 0)`;
       el.style.pointerEvents = a > 0.85 ? "auto" : "none";
     });
 
@@ -393,14 +422,14 @@ export default function SimulationsSection() {
         id="art-station"
         ref={wrapperRef}
         data-snap
-        className="relative hidden md:block"
+        className="relative"
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           <h2
             ref={titleRef}
-            className="pointer-events-none absolute inset-x-0 top-[12svh] z-20 mx-auto max-w-4xl px-6 text-center font-display text-3xl leading-tight text-bone md:px-12 lg:text-4xl"
+            className="pointer-events-none absolute inset-x-0 top-[8svh] z-20 mx-auto max-w-4xl px-5 text-center font-display text-[1.3rem] leading-tight text-bone sm:text-3xl md:top-[12svh] md:px-12 lg:text-4xl"
             style={{ opacity: 0 }}
           >
             {TITLE}
@@ -416,6 +445,7 @@ export default function SimulationsSection() {
               alt="Vue de face du poste de pilotage de la Pitiusa Art Station"
               fill
               sizes="180vw"
+              quality={100}
               className="object-contain"
               priority
             />
@@ -423,8 +453,8 @@ export default function SimulationsSection() {
 
           {/* The cards, in the flow so the browser lays the row out and the
               bubbles have a real box to start from. */}
-          <div className="pointer-events-none absolute inset-x-0 top-[30svh] z-20 px-6 md:px-12">
-            <div className="mx-auto grid max-w-[86rem] grid-cols-4 gap-7">
+          <div className="pointer-events-none absolute inset-x-0 top-[32svh] z-20 px-4 sm:px-6 md:top-[30svh] md:px-12">
+            <div className="mx-auto grid max-w-[86rem] grid-cols-2 gap-3 sm:gap-7 md:grid-cols-4">
               {simulations.map((simulation, i) => (
                 <div
                   key={simulation.slug}
@@ -452,7 +482,7 @@ export default function SimulationsSection() {
                     badgeRefs.current[i] = el;
                   }}
                   className="sim-badge popup-below absolute left-0 top-0 flex items-center justify-center border-2 border-brass-dim/70 bg-ink transition-colors duration-300 hover:border-oak"
-                  style={{ opacity: 0, width: BADGE, height: BADGE }}
+                  style={{ opacity: 0, width: BADGE.wide, height: BADGE.wide }}
                 >
                   <Icon className="h-8 w-8 shrink-0 text-oak" strokeWidth={1.25} />
                   <div className="sim-popup absolute z-40 w-64 rounded-2xl border border-brass-dim/60 bg-ink px-5 py-4 text-center shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
@@ -478,7 +508,7 @@ export default function SimulationsSection() {
                 className={`sim-badge sim-dot ${
                   (hs.fx <= 0.5) === hs.pinned ? "popup-left" : "popup-right"
                 } absolute left-0 top-0 flex items-center justify-center rounded-full border-2 border-oak/60 bg-ink/90 backdrop-blur-sm`}
-                style={{ opacity: 0, width: DOT, height: DOT }}
+                style={{ opacity: 0, width: DOT.wide, height: DOT.wide }}
               >
                 <span className="h-2 w-2 rounded-full bg-oak" />
                 <div className="sim-popup absolute z-40 w-64 rounded-2xl border border-brass-dim/60 bg-ink px-5 py-4 text-left shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
@@ -490,7 +520,7 @@ export default function SimulationsSection() {
           </div>
 
           {/* Closing copy: centred, and revealed line by line. */}
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-6 md:px-12">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-5 sm:px-6 md:px-12">
             <div className="mx-auto max-w-4xl text-center">
               {CLOSING_LINES.map((line, i) => (
                 <p
@@ -500,8 +530,8 @@ export default function SimulationsSection() {
                   }}
                   className={
                     line.heading
-                      ? "font-display text-4xl leading-tight text-bone lg:text-5xl"
-                      : `text-xl leading-relaxed text-bone-dim lg:text-2xl ${
+                      ? "font-display text-[1.65rem] leading-tight text-bone sm:text-4xl lg:text-5xl"
+                      : `text-base leading-relaxed text-bone-dim sm:text-xl lg:text-2xl ${
                           line.gap ? "mt-8" : ""
                         }`
                   }
@@ -515,8 +545,6 @@ export default function SimulationsSection() {
         </div>
       </section>
 
-      {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative px-5 py-14 md:hidden">{staticBlock}</section>
     </>
   );
 }

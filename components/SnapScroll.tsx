@@ -38,14 +38,23 @@ const MAX_MS = 3000;
 // fires several, and a trackpad flick fires a long inertial tail. This is
 // the quiet period that separates two gestures.
 const GESTURE_END_MS = 140;
-// While the burst is still running, another advance is allowed only this
-// often — the cadence for someone who keeps scrolling rather than flicking.
-const REPEAT_MS = 430;
-// …and not before the glide in flight has nearly played out, or a sustained
-// scroll would stack hops on top of each other and the pacing above would
-// count for nothing. This is how early the next one may start, so a continuous
-// scroll stays continuous instead of stalling between acts.
-const REPEAT_LEAD_MS = 140;
+// How much the hand has to actually push before a stop is answered, counted
+// in the pointer's own notches. One notch used to be a whole act, which is
+// what made a mouse feel hair-trigger: the lightest flick of a finger jumped
+// a scene. Under 1 nothing is ever held back; much over 2 a wheel starts to
+// feel heavy.
+const NOTCHES = 1.8;
+// The notch is learned from the pointer rather than assumed, because the
+// number a wheel reports is not a constant: Chrome sends 100 pixels, Firefox
+// sends 3 lines, a high-resolution wheel sends a stream of small ones. What
+// is comparable across all of them is the total distance pushed, so that is
+// what accumulates — and these bounds keep one stray large delta from making
+// the page feel stuck.
+const UNIT_MIN = 40;
+const UNIT_MAX = 140;
+// Wheel deltas come in three units. Normalised to pixels so one accumulator
+// can serve every pointer.
+const LINE_PX = 16;
 // …and only while the deltas are still at full strength. Nothing here
 // compares a delta against a fixed threshold, because that number is exactly
 // what changes with the pointer's sensitivity: a brisk wheel would clear any
@@ -69,6 +78,10 @@ const MIN_GAP_VH = 0.3;
 // is a scene playing, and the same curve would rush its middle at twice the
 // average speed — exactly where the animation is. So the further the travel,
 // the flatter the curve through the middle.
+const wheelPixels = (e: WheelEvent) =>
+  Math.abs(e.deltaY) *
+  (e.deltaMode === 1 ? LINE_PX : e.deltaMode === 2 ? window.innerHeight : 1);
+
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const easeInOutSine = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
@@ -87,10 +100,11 @@ export default function SnapScroll() {
     // than queued behind it.
     let targetY = 0;
     let lastWheel = 0;
-    let lastAdvance = 0;
-    // When the current glide is due to finish, so a sustained
-    // scroll can wait for it rather than talk over it.
-    let glideEnds = 0;
+    // How far the hand has pushed since the last stop was answered, and the
+    // pointer's own notch measured from the largest delta it has sent.
+    let charge = 0;
+    let unit = 0;
+    let lastDirection = 0;
     // A single pending advance: -1, 0 or 1. One deep on purpose — see `go`.
     let queued: -1 | 0 | 1 = 0;
     let peak = 0;
@@ -122,10 +136,7 @@ export default function SnapScroll() {
       const from = window.scrollY;
       const distance = target - from;
       targetY = target;
-      if (Math.abs(distance) < 2) {
-        glideEnds = performance.now();
-        return;
-      }
+      if (Math.abs(distance) < 2) return;
       cancelAnimationFrame(raf);
       // A gesture that reaches this point is being acted on now, so whatever
       // was waiting is stale.
@@ -138,7 +149,6 @@ export default function SnapScroll() {
       );
       const ease = easeFor(travelled);
       const started = performance.now();
-      glideEnds = started + duration;
 
       // The stylesheet asks for smooth scrolling, which would fight a
       // frame-by-frame animation — every scrollTo would start its own
@@ -207,42 +217,51 @@ export default function SnapScroll() {
 
       e.preventDefault();
       const now = performance.now();
-      const delta = Math.abs(e.deltaY);
+      const delta = wheelPixels(e);
+      if (delta === 0) return;
       const gap = now - lastWheel;
       lastWheel = now;
 
-      const advance = () => {
-        peak = delta;
+      // Turning round starts the count again: what was pushed downward is no
+      // argument for going up.
+      const direction: 1 | -1 = e.deltaY > 0 ? 1 : -1;
+      if (direction !== lastDirection) {
+        charge = 0;
+        lastDirection = direction;
+      }
+
+      // A quiet stretch means the previous gesture is over, inertia included,
+      // so the burst's shape is measured afresh.
+      if (gap > GESTURE_END_MS) {
+        peak = 0;
         trough = delta;
         decaying = false;
-        lastAdvance = now;
-        go(e.deltaY > 0 ? 1 : -1);
-      };
-
-      // A quiet stretch means the previous gesture is over, inertia included.
-      if (gap > GESTURE_END_MS || lastAdvance === 0) {
-        advance();
-        return;
       }
+
+      unit = Math.min(UNIT_MAX, Math.max(unit, delta, UNIT_MIN));
+      peak = Math.max(peak, delta);
 
       if (decaying) {
         trough = Math.min(trough, delta);
-        // Climbing back out of the tail: a new push, so answer it.
-        if (delta > trough * REPUSH && now - lastAdvance > 220) advance();
-        return;
-      }
-
-      peak = Math.max(peak, delta);
-      if (delta < peak * SUSTAIN) {
-        // The tail has begun. From here events are swallowed until either a
-        // quiet stretch or a fresh push.
+        // Climbing back out of the tail: a hand is pushing again.
+        if (delta > trough * REPUSH) {
+          decaying = false;
+          peak = delta;
+        }
+      } else if (delta < peak * SUSTAIN) {
+        // The deltas are falling away on their own — the finger has left the
+        // trackpad and this is inertia. It counts for nothing: otherwise a
+        // single flick would coast through several acts.
         decaying = true;
         trough = delta;
-        return;
       }
-      // Still at full strength → a finger is still pushing. Answer it once the
-      // act in flight has had its time.
-      if (now - lastAdvance > REPEAT_MS && now >= glideEnds - REPEAT_LEAD_MS) advance();
+      if (decaying) return;
+
+      charge += delta;
+      const push = unit * NOTCHES;
+      if (charge < push) return;
+      charge -= push;
+      go(direction);
     };
 
     const onKey = (e: KeyboardEvent) => {

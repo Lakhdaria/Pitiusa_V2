@@ -68,7 +68,9 @@ const CARD_ARCS = [337.5, 247.5, 157.5, 67.5];
 // …and the gaps they leave, as absolute angles, for the ones that fall in.
 const SKY_ANGLES = [112.5, 22.5, 292.5, 202.5];
 
-const BADGE = 84;
+// The circle's badge. Eight of these ring an ellipse, so in portrait the
+// size has to come down with the radius or the ring becomes a solid band.
+const BADGE = { wide: 84, portrait: 54 };
 // One entry per badge: amplitude, periods, phase, how fast it chases the
 // cursor and how far it leans. Hand-written rather than random so the
 // motion is the same on every load — and deliberately unrelated from one
@@ -160,16 +162,42 @@ const INSET_SIDE = 5;
 const INSET_TOP = 4;
 const BOTTOM_GAP = 40;
 
+
+// Every photograph and the film are 16:9. The mount is given that shape too,
+// so `object-cover` has nothing left to crop: the picture fills the rounded
+// window edge to edge — keeping the rounded corners the design relies on —
+// and none of it is hidden. On a 16:9 screen this is the full-bleed frame the
+// section always had; on a phone it becomes a centred plate rather than a
+// vertical slice of a landscape photograph.
+const PHOTO_RATIO = 16 / 9;
+// The white mount's own padding, p-3 below md and p-5 from md up.
+const framePad = (w: number) => (w < 768 ? 12 : 20);
+// The largest mount whose inner window is exactly 16:9 and that still fits
+// the space it is given. Width first; if that makes it taller than the space,
+// the width comes back down instead of the picture being cropped.
+const fitFrame = (availW: number, availH: number) => {
+  const pad = framePad(availW);
+  let w = availW;
+  let h = (w - 2 * pad) / PHOTO_RATIO + 2 * pad;
+  if (h > availH) {
+    h = availH;
+    w = (h - 2 * pad) * PHOTO_RATIO + 2 * pad;
+  }
+  return { w, h };
+};
+
 function ExperienceCard({ experience }: { experience: Experience }) {
   const Icon = icons[experience.icon];
   return (
-    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-6 py-8 text-center sm:px-7 sm:py-10 transition-colors duration-300 hover:border-oak">
-      <div className="flex flex-col items-center justify-center gap-4">
-        <Icon className="h-10 w-10 shrink-0 text-oak" strokeWidth={1.25} />
-        <h3 className="font-display text-base uppercase tracking-[0.18em] text-bone">
+    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-3 py-5 text-center transition-colors duration-300 hover:border-oak sm:px-7 sm:py-10">
+      <div className="flex flex-col items-center justify-center gap-2 sm:gap-4">
+        <Icon className="h-7 w-7 shrink-0 text-oak sm:h-10 sm:w-10" strokeWidth={1.25} />
+        <h3 className="font-display text-[0.7rem] uppercase tracking-[0.12em] text-bone sm:text-base sm:tracking-[0.18em]">
           {experience.title}
         </h3>
-        <p className="text-base leading-relaxed text-bone-dim">{experience.summary}</p>
+        <p className="text-[0.72rem] leading-snug text-bone-dim sm:text-base sm:leading-relaxed">
+          {experience.summary}
+        </p>
       </div>
     </div>
   );
@@ -212,6 +240,10 @@ export default function IntuitionSection() {
     if (!sticky) return;
     const sw = sticky.offsetWidth;
     const sh = sticky.offsetHeight;
+    // Measured rather than matched against a media query, so a rotation is
+    // picked up on the next frame without React having to track it.
+    const portrait = sw < 768;
+    const badge = portrait ? BADGE.portrait : BADGE.wide;
 
     // Both lines clear together when the photo starts pulling back; only
     // their arrivals are staggered.
@@ -233,17 +265,23 @@ export default function IntuitionSection() {
     const zoom = ease(Math.min(1, u / 0.55));
     const exit = ease(clamp((u - 0.45) / 0.55));
 
+    // Pulled back by the width; the height follows so the mount keeps the
+    // photograph's shape. `bottomRef`'s block still decides how far up the
+    // plate has to sit once the cards are in.
     const blockH = bottomRef.current?.offsetHeight ?? 0;
-    const bottomInset = zoom * (blockH + BOTTOM_GAP);
-    const topInset = zoom * INSET_TOP * 0.01 * sh;
+    const { w, h } = fitFrame(sw * (1 - zoom * 0.2), sh);
+    const frameH = h;
+    // Lifted just enough to clear the heading and cards once they are in.
+    const lift = zoom * Math.max(0, blockH + BOTTOM_GAP - (sh - h) / 2);
+    const topInset = Math.max(0, (sh - h) / 2 - lift);
+    const sideInset = (sw - w) / 2;
 
     if (frameRef.current) {
       const f = frameRef.current;
-      f.style.top = `${topInset}px`;
-      f.style.bottom = `${bottomInset}px`;
-      f.style.left = `${zoom * INSET_SIDE}vw`;
-      f.style.right = `${zoom * INSET_SIDE}vw`;
-      const frameH = sh - topInset - bottomInset;
+      f.style.top = `${topInset.toFixed(1)}px`;
+      f.style.bottom = `${(sh - h - topInset).toFixed(1)}px`;
+      f.style.left = `${sideInset.toFixed(1)}px`;
+      f.style.right = `${sideInset.toFixed(1)}px`;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
       f.style.opacity = `${span(p, 0, AT.appear) * (1 - exit)}`;
       f.style.visibility = exit > 0.995 ? "hidden" : "visible";
@@ -254,10 +292,10 @@ export default function IntuitionSection() {
       // time is what actually pulls the subject back.
       // Never below 1, or the photo stops covering its rounded window and
       // its own square corners show against the white mount.
-      imageRef.current.style.transform = `scale(${Math.max(
-        1,
-        1.18 - zoom * 0.18 - exit * 0.1
-      ).toFixed(3)})`;
+      // Capped at 1: above it the window shows only a crop of the photo.
+      // Fixed at 1: the window is the photograph's own shape, so it covers
+      // exactly. Above 1 the edges start being hidden again.
+      imageRef.current.style.transform = "scale(1)";
     }
 
     const u2 = span(p, AT.zoom, AT.cards);
@@ -296,8 +334,18 @@ export default function IntuitionSection() {
     const cy = sh / 2;
     // The circle opens out as the cockpit takes the middle, so the badges
     // ring the machine instead of overlapping it.
-    const rx = Math.min(sw * 0.34, 460) + spread * (sw * 0.46 - Math.min(sw * 0.34, 460));
-    const ry = Math.min(sh * 0.34, 300) + spread * (sh * 0.41 - Math.min(sh * 0.34, 300));
+    // Held off the edges by half a badge either way, so no badge is ever
+    // clipped: on a phone the widest the ring can be is the screen minus one
+    // badge, not a fixed fraction of it.
+    const rxMax = sw / 2 - badge / 2 - (portrait ? 10 : 24);
+    const ryMax = sh / 2 - badge / 2 - (portrait ? 24 : 40);
+    // Pushed as wide as the screen allows in portrait: the copy sits inside
+    // the ring, and the badges at 0° and 180° are exactly on its lines, so
+    // every pixel of radius is a pixel the text gets back.
+    const rx0 = Math.min(sw * (portrait ? 0.44 : 0.34), 460, rxMax);
+    const ry0 = Math.min(sh * 0.34, 300, ryMax);
+    const rx = rx0 + spread * (Math.min(sw * (portrait ? 0.5 : 0.46), rxMax) - rx0);
+    const ry = ry0 + spread * (Math.min(sh * 0.41, ryMax) - ry0);
     const ringPos = (angle: number) => {
       const a = ((angle + spin) * Math.PI) / 180;
       return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) };
@@ -351,16 +399,16 @@ export default function IntuitionSection() {
       const onPath = ringPos(ENTRY_ANGLE + travelled);
 
       const x = ride > 0 ? onPath.x : entry.x;
-      const y = ride > 0 ? onPath.y : -BADGE + (entry.y + BADGE) * fall + rebound;
+      const y = ride > 0 ? onPath.y : -badge + (entry.y + badge) * fall + rebound;
 
       el.style.opacity = `${t > 0 ? 1 - badgesOut : 0}`;
       next.push({
         el,
-        x: x - BADGE / 2,
-        y: y - BADGE / 2,
-        w: BADGE,
-        h: BADGE,
-        r: BADGE / 2,
+        x: x - badge / 2,
+        y: y - badge / 2,
+        w: badge,
+        h: badge,
+        r: badge / 2,
         // Turns as it travels, so the circuit reads as rolling rather than
         // sliding, then straightens up over the last stretch so it parks
         // upright instead of keeping the angle it arrived at.
@@ -388,9 +436,11 @@ export default function IntuitionSection() {
 
       if (slot) {
         slot.style.opacity = `${slotsIn * (1 - clamp(t / 0.5)) * (1 - badgesOut)}`;
-        slot.style.transform = `translate3d(${(target.x - BADGE / 2).toFixed(1)}px, ${(
+        slot.style.width = `${badge}px`;
+        slot.style.height = `${badge}px`;
+        slot.style.transform = `translate3d(${(target.x - badge / 2).toFixed(1)}px, ${(
           target.y -
-          BADGE / 2
+          badge / 2
         ).toFixed(1)}px, 0)`;
       }
       if (!el) return;
@@ -398,11 +448,11 @@ export default function IntuitionSection() {
       el.style.opacity = `${t > 0 ? 1 - badgesOut : 0}`;
       next.push({
         el,
-        x: target.x - BADGE / 2,
-        y: -BADGE + (target.y + BADGE) * fall + rebound - BADGE / 2,
-        w: BADGE,
-        h: BADGE,
-        r: BADGE / 2,
+        x: target.x - badge / 2,
+        y: -badge + (target.y + badge) * fall + rebound - badge / 2,
+        w: badge,
+        h: badge,
+        r: badge / 2,
         rot: spin,
       });
     });
@@ -443,7 +493,7 @@ export default function IntuitionSection() {
     const fullH = sh * (0.52 + 0.46 * grow);
     const bandH = Math.max(170, sh - topPad - reserved - sh * 0.035);
     const availH = mix(fullH, Math.min(fullH, bandH), give);
-    const cockpitW = Math.min(sw * 0.98, availH * cockpitAspect.current);
+    const cockpitW = Math.min(sw * (portrait ? 0.92 : 0.98), availH * cockpitAspect.current);
     const cockpitH = cockpitW / cockpitAspect.current;
     const centerY = mix(
       sh / 2,
@@ -601,6 +651,7 @@ export default function IntuitionSection() {
             alt="Vue arrière de la Pitiusa Art Station"
             fill
             sizes="100vw"
+            quality={100}
             className="object-cover"
           />
         </div>
@@ -621,7 +672,7 @@ export default function IntuitionSection() {
         id="intuition"
         ref={wrapperRef}
         data-snap
-        className="relative hidden md:-mt-[100svh] md:block"
+        className="relative -mt-[100svh]"
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />
@@ -634,14 +685,15 @@ export default function IntuitionSection() {
             className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] md:rounded-[2.5rem] md:p-5"
             style={{ opacity: 0 }}
           >
-            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem]">
-              <div ref={imageRef} className="absolute inset-0" style={{ transform: "scale(1.18)" }}>
+            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-white md:rounded-[1.75rem]">
+              <div ref={imageRef} className="absolute inset-0" style={{ transform: "scale(1)" }}>
                 <Image
                   src="/images/rear-detail-v2.jpg"
                   alt="Vue arrière de la Pitiusa Art Station"
                   fill
                   priority
                   sizes="100vw"
+                  quality={100}
                   className="object-cover"
                 />
               </div>
@@ -652,7 +704,7 @@ export default function IntuitionSection() {
                 size itself from — it collapsed to zero, and the text broke
                 one word per line. */}
             <h2
-              className="pointer-events-none absolute left-10 top-16 w-[min(40rem,72vw)] font-display text-4xl leading-[1.05] md:left-14 md:top-24 md:text-6xl"
+              className="pointer-events-none absolute left-6 top-24 w-[84vw] font-display text-[2rem] leading-[1.1] sm:w-[min(40rem,72vw)] sm:text-4xl md:left-14 md:top-24 md:text-6xl"
               style={{
                 fontVariationSettings: "'wght' 380",
                 color: "#3d2410",
@@ -674,15 +726,15 @@ export default function IntuitionSection() {
             </h2>
           </div>
 
-          <div ref={bottomRef} className="absolute inset-x-0 bottom-[4svh] px-6 md:px-12">
+          <div ref={bottomRef} className="absolute inset-x-0 bottom-[4svh] px-4 sm:px-6 md:px-12">
             <h2
               ref={headingRef}
-              className="mx-auto max-w-4xl text-center font-display text-3xl leading-tight text-bone lg:text-5xl"
+              className="mx-auto max-w-4xl text-center font-display text-[1.45rem] leading-tight text-bone sm:text-3xl lg:text-5xl"
               style={{ opacity: 0 }}
             >
               {CARDS_HEADING}
             </h2>
-            <div className="mx-auto mt-8 grid max-w-[86rem] grid-cols-4 gap-7">
+            <div className="mx-auto mt-6 grid max-w-[86rem] grid-cols-2 gap-3 sm:gap-7 md:mt-8 md:grid-cols-4">
               {experiences.map((experience, i) => (
                 <div
                   key={experience.slug}
@@ -700,17 +752,17 @@ export default function IntuitionSection() {
           {/* Closing copy, inside the ring. */}
           <div
             ref={ringTextRef}
-            className="pointer-events-none absolute left-1/2 top-1/2 w-[34rem] max-w-[56vw] -translate-x-1/2 -translate-y-1/2 text-center"
+            className="pointer-events-none absolute left-1/2 top-1/2 w-[34rem] max-w-[58vw] -translate-x-1/2 -translate-y-1/2 text-center sm:max-w-[56vw]"
             style={{ opacity: 0 }}
           >
-            <h2 className="font-display text-3xl leading-tight text-bone lg:text-4xl">
+            <h2 className="font-display text-[1.1rem] leading-tight text-bone sm:text-3xl lg:text-4xl">
               {RING_HEADING.map((line) => (
                 <span key={line} className="block">
                   {line}
                 </span>
               ))}
             </h2>
-            <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-bone-dim lg:text-lg">
+            <p className="mx-auto mt-3 max-w-lg text-[0.78rem] leading-snug text-bone-dim sm:mt-5 sm:text-base sm:leading-relaxed lg:text-lg">
               {RING_TEXT}
             </p>
           </div>
@@ -728,6 +780,7 @@ export default function IntuitionSection() {
               width={2000}
               height={1125}
               sizes="95vw"
+              quality={100}
               className="h-auto w-full"
               onLoad={(e) => {
                 const img = e.currentTarget;
@@ -743,10 +796,10 @@ export default function IntuitionSection() {
               starts where the machine actually ends. */}
           <div
             ref={finalTextRef}
-            className="pointer-events-none absolute inset-x-0 top-0 px-6 md:px-12"
+            className="pointer-events-none absolute inset-x-0 top-0 px-5 sm:px-6 md:px-12"
             style={{ opacity: 0 }}
           >
-            <p className="mx-auto max-w-5xl text-center font-display text-2xl leading-snug text-bone lg:text-[2rem]">
+            <p className="mx-auto max-w-5xl text-center font-display text-lg leading-snug text-bone sm:text-2xl lg:text-[2rem]">
               {FINAL_WORDS.map((word, i) => (
                 <span
                   key={`${word}-${i}`}
@@ -766,16 +819,16 @@ export default function IntuitionSection() {
               JS-driven `top` for the same reason. */}
           <div
             ref={specsRef}
-            className="pointer-events-none absolute inset-x-0 top-0 px-6 md:px-12"
+            className="pointer-events-none absolute inset-x-0 top-0 px-5 sm:px-6 md:px-12"
           >
-            <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-x-12 gap-y-3">
+            <ul className="mx-auto grid max-w-5xl grid-cols-1 gap-x-12 gap-y-2 sm:grid-cols-2 sm:gap-y-3">
               {SPECS.map((spec, i) => (
                 <li
                   key={spec}
                   ref={(el) => {
                     specRefs.current[i] = el;
                   }}
-                  className="flex gap-3 text-sm leading-snug text-bone-dim lg:text-base"
+                  className="flex gap-3 text-[0.8rem] leading-snug text-bone-dim sm:text-sm lg:text-base"
                   style={{ opacity: 0 }}
                 >
                   <span className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-oak" />
@@ -798,7 +851,7 @@ export default function IntuitionSection() {
                   slotRefs.current[j] = el;
                 }}
                 className="absolute left-0 top-0 rounded-full border-2 border-dashed border-brass-dim/70"
-                style={{ opacity: 0, width: BADGE, height: BADGE }}
+                style={{ opacity: 0, width: BADGE.wide, height: BADGE.wide }}
               />
             ))}
             {JOINERS.map((key, i) => {
@@ -810,7 +863,7 @@ export default function IntuitionSection() {
                     joinerRefs.current[i] = el;
                   }}
                   className="absolute left-0 top-0 flex items-center justify-center rounded-full border-2 border-brass-dim/70 bg-ink"
-                  style={{ opacity: 0, width: BADGE, height: BADGE }}
+                  style={{ opacity: 0, width: BADGE.wide, height: BADGE.wide }}
                 >
                   <Icon className="h-7 w-7 shrink-0 text-oak" strokeWidth={1.25} />
                 </div>
@@ -825,7 +878,7 @@ export default function IntuitionSection() {
                     movingRefs.current[i] = el;
                   }}
                   className="absolute left-0 top-0 flex items-center justify-center overflow-hidden border-2 border-brass-dim/70 bg-ink"
-                  style={{ opacity: 0, width: BADGE, height: BADGE, borderRadius: BADGE / 2 }}
+                  style={{ opacity: 0, width: BADGE.wide, height: BADGE.wide, borderRadius: BADGE.wide / 2 }}
                 >
                   <Icon className="h-7 w-7 shrink-0 text-oak" strokeWidth={1.25} />
                 </div>
@@ -836,24 +889,6 @@ export default function IntuitionSection() {
       </section>
 
       {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative bg-white px-5 py-14 md:hidden">
-        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[24px]">
-          <Image
-            src="/images/rear-detail-v2.jpg"
-            alt="Vue arrière de la Pitiusa Art Station"
-            fill
-            sizes="100vw"
-            className="object-cover"
-          />
-        </div>
-        <p
-          className="mt-8 font-display text-[1.6rem] leading-[1.15] sm:text-3xl sm:leading-[1.05]"
-          style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
-        >
-          {IMAGE_LINES.join(" ")}
-        </p>
-        {staticBlock}
-      </section>
     </>
   );
 }

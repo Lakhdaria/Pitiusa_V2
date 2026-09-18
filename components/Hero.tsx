@@ -6,6 +6,30 @@ import { useScrollProgress } from "@/lib/useScrollProgress";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useIsDesktop } from "@/lib/useIsDesktop";
 
+
+// Every photograph and the film are 16:9. The mount is given that shape too,
+// so `object-cover` has nothing left to crop: the picture fills the rounded
+// window edge to edge — keeping the rounded corners the design relies on —
+// and none of it is hidden. On a 16:9 screen this is the full-bleed frame the
+// section always had; on a phone it becomes a centred plate rather than a
+// vertical slice of a landscape photograph.
+const PHOTO_RATIO = 16 / 9;
+// The white mount's own padding, p-3 below md and p-5 from md up.
+const framePad = (w: number) => (w < 768 ? 12 : 20);
+// The largest mount whose inner window is exactly 16:9 and that still fits
+// the space it is given. Width first; if that makes it taller than the space,
+// the width comes back down instead of the picture being cropped.
+const fitFrame = (availW: number, availH: number) => {
+  const pad = framePad(availW);
+  let w = availW;
+  let h = (w - 2 * pad) / PHOTO_RATIO + 2 * pad;
+  if (h > availH) {
+    h = availH;
+    w = (h - 2 * pad) * PHOTO_RATIO + 2 * pad;
+  }
+  return { w, h };
+};
+
 export default function Hero() {
   const reduced = useReducedMotion();
   const isDesktop = useIsDesktop();
@@ -141,13 +165,17 @@ export default function Hero() {
     }
     if (frame) {
       const vh = window.innerHeight;
-      const topInset = zoom * 0.04 * vh;
-      const bottomInset = zoom * 0.28 * vh;
+      const vw = window.innerWidth;
+      // The pull-back is driven from the width now; the height follows from
+      // it, so the mount keeps the photograph's shape throughout.
+      const { w, h } = fitFrame(vw * (1 - zoom * 0.2), vh);
+      const frameH = h;
+      const topInset = (vh - h) / 2;
+      const sideInset = (vw - w) / 2;
       frame.style.top = `${topInset.toFixed(1)}px`;
-      frame.style.bottom = `${bottomInset.toFixed(1)}px`;
-      frame.style.left = `${(zoom * 5).toFixed(2)}vw`;
-      frame.style.right = `${(zoom * 5).toFixed(2)}vw`;
-      const frameH = vh - topInset - bottomInset;
+      frame.style.bottom = `${topInset.toFixed(1)}px`;
+      frame.style.left = `${sideInset.toFixed(1)}px`;
+      frame.style.right = `${sideInset.toFixed(1)}px`;
       frame.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(
         1
       )}px, 0)`;
@@ -160,7 +188,12 @@ export default function Hero() {
     // — which is what made the frame look like it lost its rounding on
     // the way out. The pull-back comes from the frame shrinking anyway;
     // with object-cover the photo scales down with it.
-    photoScale.current = Math.max(1.01, 1.08 - zoom * 0.05 - exit * 0.04);
+    // Never above 1. Over 1 the photo is larger than its window and the
+    // window shows a crop of it — which is exactly the hidden content this
+    // used to cause. The pull-back is the frame's job, not the photo's.
+    // Fixed at 1. The window is the photograph's own shape, so the picture
+    // covers it exactly; anything above 1 would start hiding its edges again.
+    photoScale.current = 1;
     if (parallaxRef.current && (reduced || !isDesktop)) {
       parallaxRef.current.style.transform = `scale(${photoScale.current.toFixed(3)})`;
     }
@@ -187,7 +220,7 @@ export default function Hero() {
         {/* Static clipping window: fixed size and position, defines the
             visible frame. Never transforms, so the white border it sits
             inside stays put no matter what the layer below is doing. */}
-        <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem]">
+        <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-white md:rounded-[1.75rem]">
           <div ref={parallaxRef} className="absolute inset-0">
             <Image
               src="/images/interior-side-v2.jpg"
@@ -195,7 +228,8 @@ export default function Hero() {
               fill
               priority
               sizes="100vw"
-              className={`object-cover object-[65%_center] transition-opacity duration-[1600ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              quality={100}
+              className={`object-cover transition-opacity duration-[1600ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
                 mounted ? "opacity-100" : "opacity-0"
               }`}
             />

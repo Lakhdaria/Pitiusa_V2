@@ -33,6 +33,30 @@ const AT = {
 // A stop per line, so each one is read standing still.
 const SNAP_AT = [PHASES.appear + PHASES.line1, PHASES.appear + PHASES.line1 + PHASES.line2];
 
+
+// Every photograph and the film are 16:9. The mount is given that shape too,
+// so `object-cover` has nothing left to crop: the picture fills the rounded
+// window edge to edge — keeping the rounded corners the design relies on —
+// and none of it is hidden. On a 16:9 screen this is the full-bleed frame the
+// section always had; on a phone it becomes a centred plate rather than a
+// vertical slice of a landscape photograph.
+const PHOTO_RATIO = 16 / 9;
+// The white mount's own padding, p-3 below md and p-5 from md up.
+const framePad = (w: number) => (w < 768 ? 12 : 20);
+// The largest mount whose inner window is exactly 16:9 and that still fits
+// the space it is given. Width first; if that makes it taller than the space,
+// the width comes back down instead of the picture being cropped.
+const fitFrame = (availW: number, availH: number) => {
+  const pad = framePad(availW);
+  let w = availW;
+  let h = (w - 2 * pad) / PHOTO_RATIO + 2 * pad;
+  if (h > availH) {
+    h = availH;
+    w = (h - 2 * pad) * PHOTO_RATIO + 2 * pad;
+  }
+  return { w, h };
+};
+
 export default function LoungeSection() {
   const reduced = useReducedMotion();
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -65,13 +89,15 @@ export default function LoungeSection() {
 
     if (frameRef.current) {
       const f = frameRef.current;
-      const topInset = zoom * 0.04 * sh;
-      const bottomInset = zoom * 0.28 * sh;
+      const sw = sticky.offsetWidth;
+      const { w, h } = fitFrame(sw * (1 - zoom * 0.2), sh);
+      const frameH = h;
+      const topInset = (sh - h) / 2;
+      const sideInset = (sw - w) / 2;
       f.style.top = `${topInset.toFixed(1)}px`;
-      f.style.bottom = `${bottomInset.toFixed(1)}px`;
-      f.style.left = `${(zoom * 5).toFixed(2)}vw`;
-      f.style.right = `${(zoom * 5).toFixed(2)}vw`;
-      const frameH = sh - topInset - bottomInset;
+      f.style.bottom = `${topInset.toFixed(1)}px`;
+      f.style.left = `${sideInset.toFixed(1)}px`;
+      f.style.right = `${sideInset.toFixed(1)}px`;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
       f.style.opacity = `${span(p, 0, AT.appear) * (1 - exit)}`;
       f.style.visibility = exit > 0.995 ? "hidden" : "visible";
@@ -79,10 +105,10 @@ export default function LoungeSection() {
     if (imageRef.current) {
       // Never below 1: under that the photo stops covering its rounded
       // window and its own square corners show against the white mount.
-      imageRef.current.style.transform = `scale(${Math.max(
-        1,
-        1.16 - zoom * 0.16 - exit * 0.1
-      ).toFixed(3)})`;
+      // Capped at 1: above it the window shows only a crop of the photo.
+      // Fixed at 1: the window is the photograph's own shape, so it covers
+      // exactly. Above 1 the edges start being hidden again.
+      imageRef.current.style.transform = "scale(1)";
     }
   }, []);
 
@@ -94,6 +120,7 @@ export default function LoungeSection() {
       alt="Pitiusa Art Station dans un salon"
       fill
       sizes="100vw"
+      quality={100}
       className="object-cover"
     />
   );
@@ -128,7 +155,7 @@ export default function LoungeSection() {
       <section
         ref={wrapperRef}
         data-snap
-        className="relative hidden md:-mt-[100svh] md:block"
+        className="relative -mt-[100svh]"
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />
@@ -138,8 +165,8 @@ export default function LoungeSection() {
             className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] md:rounded-[2.5rem] md:p-5"
             style={{ opacity: 0 }}
           >
-            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem]">
-              <div ref={imageRef} className="absolute inset-0" style={{ transform: "scale(1.16)" }}>
+            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-white md:rounded-[1.75rem]">
+              <div ref={imageRef} className="absolute inset-0" style={{ transform: "scale(1)" }}>
                 {photo}
               </div>
             </div>
@@ -149,7 +176,7 @@ export default function LoungeSection() {
                 size itself from — it collapsed to zero, and the text broke
                 one word per line. */}
             <h2
-              className="pointer-events-none absolute left-10 top-16 w-[min(40rem,72vw)] font-display text-4xl leading-[1.05] md:left-14 md:top-24 md:text-6xl"
+              className="pointer-events-none absolute left-6 top-24 w-[84vw] font-display text-[2rem] leading-[1.1] sm:w-[min(40rem,72vw)] sm:text-4xl md:left-14 md:top-24 md:text-6xl"
               style={{
                 fontVariationSettings: "'wght' 380",
                 color: "#3d2410",
@@ -173,22 +200,6 @@ export default function LoungeSection() {
         </div>
       </section>
 
-      {/* Mobile: no pinning. */}
-      <section className="relative px-5 py-14 md:hidden">
-        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[24px]">{photo}</div>
-        <p
-          className="mt-8 font-display text-[1.6rem] leading-[1.15] sm:text-3xl sm:leading-[1.05]"
-          style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
-        >
-          {/* Stacked, not joined with a comma: the second line opens with a
-              capital, so run together they read as one broken sentence. */}
-          {LINES.map((line) => (
-            <span key={line} className="block">
-              {line}
-            </span>
-          ))}
-        </p>
-      </section>
     </>
   );
 }

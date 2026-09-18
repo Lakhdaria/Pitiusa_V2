@@ -58,13 +58,44 @@ const SNAP_AT = [
   E("logo", "swap", "shrink", "beat1", "beat2") + PHASES.beat3 * BEAT_REST,
 ];
 
-const LOGO_SMALL = 84;
-const CORNER = 40;
+// The mark once it has parked, and how far in from the plate's corner it
+// sits. Both shrink in portrait, where 84px in a 40px corner would take a
+// quarter of the width.
+const LOGO_SMALL = { wide: 84, portrait: 52 };
+const CORNER = { wide: 40, portrait: 18 };
 
 // How far the film sits in from the edges of the screen: a share of the
 // height top and bottom, and vw either side. Raise them to shrink the plate.
-const FILM_INSET_Y = 0.12;
-const FILM_INSET_X = 16;
+// Portrait gets its own pair — 16vw of a phone is a third of the screen
+// gone, and the copy has nowhere left to sit.
+const FILM_INSET = {
+  wide: { y: 0.12, x: 16 },
+  portrait: { y: 0.07, x: 5 },
+};
+
+
+// Every photograph and the film are 16:9. The mount is given that shape too,
+// so `object-cover` has nothing left to crop: the picture fills the rounded
+// window edge to edge — keeping the rounded corners the design relies on —
+// and none of it is hidden. On a 16:9 screen this is the full-bleed frame the
+// section always had; on a phone it becomes a centred plate rather than a
+// vertical slice of a landscape photograph.
+const PHOTO_RATIO = 16 / 9;
+// The white mount's own padding, p-3 below md and p-5 from md up.
+const framePad = (w: number) => (w < 768 ? 12 : 20);
+// The largest mount whose inner window is exactly 16:9 and that still fits
+// the space it is given. Width first; if that makes it taller than the space,
+// the width comes back down instead of the picture being cropped.
+const fitFrame = (availW: number, availH: number) => {
+  const pad = framePad(availW);
+  let w = availW;
+  let h = (w - 2 * pad) / PHOTO_RATIO + 2 * pad;
+  if (h > availH) {
+    h = availH;
+    w = (h - 2 * pad) * PHOTO_RATIO + 2 * pad;
+  }
+  return { w, h };
+};
 
 export default function EcologySection() {
   const reduced = useReducedMotion();
@@ -82,6 +113,12 @@ export default function EcologySection() {
     if (!sticky) return;
     const sw = sticky.offsetWidth;
     const sh = sticky.offsetHeight;
+    // Measured, not matched against a media query: this runs on resize too,
+    // so a rotated phone picks up the other set on the next frame.
+    const portrait = sw < 768;
+    const inset = portrait ? FILM_INSET.portrait : FILM_INSET.wide;
+    const logoSmall = portrait ? LOGO_SMALL.portrait : LOGO_SMALL.wide;
+    const corner = portrait ? CORNER.portrait : CORNER.wide;
 
     // --- The mark: centred, then green, then away into the corner ---
     const appear = ease(span(p, 0, AT.logo * 0.55));
@@ -96,15 +133,15 @@ export default function EcologySection() {
 
     if (logoRef.current) {
       const big = Math.min(sw, sh) * 0.34;
-      const size = big + (LOGO_SMALL - big) * travel;
+      const size = big + (logoSmall - big) * travel;
       // Centre of the mark, from the middle of the screen to the corner.
       const cxFrom = sw / 2;
       const cyFrom = sh / 2;
       // The corner it settles into is the film's, not the screen's — now
       // that the film is a plate, the screen's corner would strand the mark
       // on the page background instead of on the footage.
-      const cxTo = (FILM_INSET_X / 100) * sw + CORNER + LOGO_SMALL / 2;
-      const cyTo = FILM_INSET_Y * sh + CORNER + LOGO_SMALL / 2;
+      const cxTo = (inset.x / 100) * sw + corner + logoSmall / 2;
+      const cyTo = inset.y * sh + corner + logoSmall / 2;
       const x = cxFrom + (cxTo - cxFrom) * travel;
       const y = cyFrom + (cyTo - cyFrom) * travel;
       const l = logoRef.current;
@@ -129,13 +166,17 @@ export default function EcologySection() {
       // A plate from the outset rather than full-bleed. The photographs open
       // edge to edge because they are the subject; the film is the backdrop
       // the copy is read against, and at full size it was the page.
-      const topInset = FILM_INSET_Y * sh;
-      const bottomInset = (FILM_INSET_Y + zoom * 0.1) * sh;
+      // The film keeps its own inset on top of the fit: it is the backdrop
+      // the copy is read against, not the subject, so it sits in from the
+      // edges even where there is room for more.
+      const { w, h } = fitFrame(sw * (1 - (inset.x * 2) / 100 - zoom * 0.08), sh);
+      const frameH = h;
+      const topInset = (sh - h) / 2;
+      const sideInset = (sw - w) / 2;
       f.style.top = `${topInset.toFixed(1)}px`;
-      f.style.bottom = `${bottomInset.toFixed(1)}px`;
-      f.style.left = `${(FILM_INSET_X + zoom * 2).toFixed(2)}vw`;
-      f.style.right = `${(FILM_INSET_X + zoom * 2).toFixed(2)}vw`;
-      const frameH = sh - topInset - bottomInset;
+      f.style.bottom = `${topInset.toFixed(1)}px`;
+      f.style.left = `${sideInset.toFixed(1)}px`;
+      f.style.right = `${sideInset.toFixed(1)}px`;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
       f.style.opacity = `${filmIn * (1 - exit)}`;
       f.style.visibility = filmIn < 0.01 || exit > 0.995 ? "hidden" : "visible";
@@ -143,10 +184,11 @@ export default function EcologySection() {
     if (filmInnerRef.current) {
       // Never below 1, or the film stops covering its rounded window and
       // its own square corners show against the white mount.
-      filmInnerRef.current.style.transform = `scale(${Math.max(
-        1,
-        1.12 - zoom * 0.12 - exit * 0.08
-      ).toFixed(3)})`;
+      // Capped at 1, like the photographs: above it the window shows only
+      // a crop of the footage.
+      // Fixed at 1: the window is the film's own shape, so it covers
+      // exactly. Above 1 the edges start being hidden again.
+      filmInnerRef.current.style.transform = "scale(1)";
     }
 
     // --- Three beats of copy, one at a time --------------------------
@@ -200,6 +242,7 @@ export default function EcologySection() {
             alt="Pitiusa Art Station, vue aérienne"
             fill
             sizes="100vw"
+            quality={100}
             className="object-cover"
           />
         </div>
@@ -216,7 +259,7 @@ export default function EcologySection() {
       <section
         ref={wrapperRef}
         data-snap
-        className="relative hidden md:-mt-[100svh] md:block"
+        className="relative -mt-[100svh]"
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />
@@ -227,8 +270,8 @@ export default function EcologySection() {
             className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] md:rounded-[2.5rem] md:p-5"
             style={{ opacity: 0, visibility: "hidden" }}
           >
-            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem]">
-              <div ref={filmInnerRef} className="absolute inset-0" style={{ transform: "scale(1.12)" }}>
+            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-white md:rounded-[1.75rem]">
+              <div ref={filmInnerRef} className="absolute inset-0" style={{ transform: "scale(1)" }}>
                 <video
                   className="h-full w-full object-cover"
                   src="/video/forest.mp4"
@@ -248,12 +291,13 @@ export default function EcologySection() {
             className="absolute inset-0 overflow-hidden rounded-[1.75rem] bg-white p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.06)] md:rounded-[2.5rem] md:p-5"
             style={{ opacity: 0 }}
           >
-            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] md:rounded-[1.75rem]">
+            <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-white md:rounded-[1.75rem]">
               <Image
                 src="/images/loft-aerial-v2.jpg"
                 alt="Pitiusa Art Station, vue aérienne"
                 fill
                 sizes="100vw"
+                quality={100}
                 className="object-cover"
               />
             </div>
@@ -265,11 +309,11 @@ export default function EcologySection() {
             {/* Capped against the plate's width, not just the page's: the
                 film no longer runs edge to edge, so a 48rem block would
                 overhang it on a narrower desktop. */}
-            <div className="relative mx-auto h-0 w-[min(48rem,58vw)]">
+            <div className="relative mx-auto h-0 w-[82vw] sm:w-[min(48rem,58vw)]">
               {BEAT_WORDS.map((words, i) => (
                 <p
                   key={i}
-                  className="absolute left-0 top-1/2 w-full -translate-y-1/2 text-center font-display text-2xl leading-snug lg:text-3xl"
+                  className="absolute left-0 top-1/2 w-full -translate-y-1/2 text-center font-display text-lg leading-snug sm:text-2xl lg:text-3xl"
                   style={{
                     color: "#ffffff",
                     textShadow: "0 2px 30px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)",
@@ -322,44 +366,6 @@ export default function EcologySection() {
         </div>
       </section>
 
-      {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative px-5 py-14 md:hidden">
-        <Image
-          src="/logo/pitiusa-logo-green.png"
-          alt="Pitiusa Art Station"
-          width={2000}
-          height={2000}
-          sizes="160px"
-          className="mx-auto h-auto w-32"
-        />
-        <div className="relative mt-10 aspect-[4/5] w-full overflow-hidden rounded-[24px]">
-          <video
-            className="h-full w-full object-cover"
-            src="/video/forest.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-          />
-        </div>
-        <div className="mt-10 space-y-7">
-          {BEATS.map((beat) => (
-            <p key={beat} className="text-base leading-relaxed text-bone-dim">
-              {beat}
-            </p>
-          ))}
-        </div>
-        <div className="relative mt-10 aspect-[4/5] w-full overflow-hidden rounded-[24px]">
-          <Image
-            src="/images/loft-aerial-v2.jpg"
-            alt="Pitiusa Art Station, vue aérienne"
-            fill
-            sizes="100vw"
-            className="object-cover"
-          />
-        </div>
-      </section>
     </>
   );
 }

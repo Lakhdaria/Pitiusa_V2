@@ -75,15 +75,15 @@ export default function ContactSection() {
         <Reveal>
           <div>
             <h2 className="font-display text-[1.75rem] leading-tight text-bone sm:text-4xl md:text-5xl">
-              Visites privées à {contact.location}.
+              Private viewings in {contact.location}.
             </h2>
             <p className="mt-6 max-w-md text-lg leading-relaxed text-bone-dim">
-              Chaque Pitiusa est construite intégralement sur commande, en {product.buildTime}. La
-              première édition est limitée à {product.editionSize}.
+              Every Pitiusa is built entirely to order, over {product.buildTimeEn.toLowerCase()}. The
+              first edition is limited to {product.editionSizeEn}.
             </p>
             <p className="mt-6 max-w-md text-lg leading-relaxed text-bone-dim">
-              Pour une visite privée, une demande presse ou toute autre question, écrivez-nous — nous
-              répondons sous deux jours ouvrés.
+              For a private viewing, a press enquiry or any other question, write to us — we reply
+              within two working days.
             </p>
             <a
               href={`mailto:${contact.email}`}
