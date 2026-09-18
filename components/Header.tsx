@@ -11,8 +11,8 @@ import Image from "next/image";
 // With the leading slash the browser still treats it as an in-page scroll
 // when the visitor is already on the home page.
 const links = [
-  { href: "/#art-station", label: "L'Art Station" },
-  { href: "/#contact", label: "Contact" },
+  { href: "/", label: "HOME" },
+  { href: "/#art-station", label: "Features" },
 ];
 
 export default function Header() {
@@ -106,7 +106,7 @@ export default function Header() {
 
           <button
             type="button"
-            aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-label={menuOpen ? "Close the menu" : "Open the menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
             className="relative z-50 flex h-8 w-8 flex-col items-center justify-center gap-[5px] md:hidden"
@@ -135,7 +135,7 @@ export default function Header() {
           the containing block for anything fixed inside it. */}
       <button
         type="button"
-        aria-label="Afficher le menu"
+        aria-label="Show the menu"
         onClick={() => setRevealed(true)}
         className={`fixed left-1/2 top-0 z-50 flex h-6 w-14 -translate-x-1/2 items-end justify-center rounded-b-xl before:absolute before:-inset-x-3 before:top-0 before:h-11 before:content-[''] border border-t-0 border-brass-dim/40 bg-surface/70 pb-1 backdrop-blur-xl transition-all duration-300 ease-out ${
           hidden ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0"
@@ -190,7 +190,7 @@ export default function Header() {
           style={{ transitionDelay: menuOpen ? `${150 + links.length * 90 + 100}ms` : "0ms" }}
         >
           <p className="font-display text-lg text-bone">Pitiusa Art Station</p>
-          <p className="mt-1 text-sm text-bone-dim">Fabriqué en France</p>
+          <p className="mt-1 text-sm text-bone-dim">Made in France</p>
         </div>
       </div>
     </>

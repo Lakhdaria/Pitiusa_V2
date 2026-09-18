@@ -131,6 +131,7 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 // per act rather than a set of fractions that have to stay consistent with
 // the section's own height.
 const PHASES = {
+  intro: 100, // the hero is still on screen above; nothing to show yet
   entry: 116, // cards arrive one by one, right to left
   hold: 31, // …and hold, nothing moving
   approach: 129, // the machine rises from below toward them
@@ -141,18 +142,37 @@ const PHASES = {
   rise: 150, // it carries on up and out of frame
   closing: 190, // the copy comes in, line by line, centred
   read: 90, // …and holds, so the block can actually be read
+  // Dead scroll at the very end. The section below is pulled up by one screen
+  // and covers exactly this much, so whatever sits here is never seen — which
+  // is the point. Without it the cover fell on the last act instead, and the
+  // spec points were wiped off the screen while they were still being read.
+  tail: 110,
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
   keys.reduce((sum, k) => sum + PHASES[k], 0) / TOTAL;
 const AT = {
-  entry: cum("entry"),
-  hold: cum("entry", "hold"),
-  approach: cum("entry", "hold", "approach"),
-  morph: cum("entry", "hold", "approach", "morph"),
-  join: cum("entry", "hold", "approach", "morph", "join"),
-  explore: cum("entry", "hold", "approach", "morph", "join", "explore"),
-  rise: cum("entry", "hold", "approach", "morph", "join", "explore", "rise"),
+  intro: cum("intro"),
+  entry: cum("intro", "entry"),
+  hold: cum("intro", "entry", "hold"),
+  approach: cum("intro", "entry", "hold", "approach"),
+  morph: cum("intro", "entry", "hold", "approach", "morph"),
+  join: cum("intro", "entry", "hold", "approach", "morph", "join"),
+  explore: cum("intro", "entry", "hold", "approach", "morph", "join", "explore"),
+  rise: cum("intro", "entry", "hold", "approach", "morph", "join", "explore", "rise"),
+  // The end of the live part, before the dead tail below it.
+  read: cum(
+    "intro",
+    "entry",
+    "hold",
+    "approach",
+    "morph",
+    "join",
+    "explore",
+    "rise",
+    "closing",
+    "read"
+  ),
 };
 // How much of the final span is spent writing the copy rather than holding it.
 const WRITE = PHASES.closing / (PHASES.closing + PHASES.read);
@@ -163,12 +183,11 @@ const WRITE = PHASES.closing / (PHASES.closing + PHASES.read);
 // blur. Summed from the budgets above so they can never drift apart.
 const S = (...keys: Array<keyof typeof PHASES>) => keys.reduce((n, k) => n + PHASES[k], 0);
 const SNAP_AT = [
-  S("entry", "hold"), // the cards settled
-  S("entry", "hold", "approach"), // the machine up under them
-  S("entry", "hold", "approach", "morph"), // …and they have turned into bubbles
-  S("entry", "hold", "approach", "morph", "join"), // full size, markers in — hover here
-  TOTAL - PHASES.closing - PHASES.read, // the machine gone
-  TOTAL - PHASES.read, // the copy written out in full
+  S("intro", "entry", "hold"), // the cards settled
+  S("intro", "entry", "hold", "approach"), // the machine up under them
+  S("intro", "entry", "hold", "approach", "morph"), // …and they have turned into bubbles
+  S("intro", "entry", "hold", "approach", "morph", "join"), // full size, markers in — hover here
+  TOTAL - PHASES.read - PHASES.tail, // the copy written out in full
 ];
 
 export default function SimulationsSection() {
@@ -194,7 +213,10 @@ export default function SimulationsSection() {
     const portrait = sw < 768;
     const badge = portrait ? BADGE.portrait : BADGE.wide;
 
-    const uEntry = span(p, 0, AT.entry);
+    // Begun inside the silent act, not at its end: the title has to be
+    // coming up while the hero is still riding out, or the two hand over on
+    // a single frame and leave a white screen between them.
+    const uEntry = span(p, AT.intro * 0.5, AT.entry);
     const uApproach = span(p, AT.hold, AT.approach);
     const uMorph = span(p, AT.approach, AT.morph);
     const uJoin = span(p, AT.morph, AT.join);
@@ -207,7 +229,9 @@ export default function SimulationsSection() {
     // over `closing`, then `read` holds it still. `uWrite` re-normalises to
     // the writing alone, so the lines land exactly when the writing budget
     // runs out however that budget is changed.
-    const uClosing = span(p, AT.rise, 1);
+    // …and measured against the end of the live part: the tail below is
+    // there to be covered by the section that follows.
+    const uClosing = span(p, AT.explore + (AT.rise - AT.explore) * 0.55, AT.read);
     const uWrite = clamp(uClosing / WRITE);
     // Everything clears over the last stretch, so the section that overlaps
     // this one's tail — and the photo that opens the next one — finds an
@@ -288,7 +312,7 @@ export default function SimulationsSection() {
       const t = titleRef.current;
       const titleBottom = offsetIn(t, sticky).y + t.offsetHeight;
       const contact = clamp((titleBottom + 20 - subjectTop) / 110);
-      t.style.opacity = `${ease(clamp(uEntry / 0.25)) * (1 - contact)}`;
+      t.style.opacity = `${ease(clamp(uEntry / 0.05)) * (1 - contact)}`;
       t.style.transform = `translate3d(0, ${(-contact * sh * 0.12).toFixed(1)}px, 0)`;
     }
 
@@ -422,7 +446,7 @@ export default function SimulationsSection() {
         id="art-station"
         ref={wrapperRef}
         data-snap
-        className="relative"
+        className="relative -mt-[100svh]"
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />

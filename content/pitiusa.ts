@@ -58,6 +58,15 @@ export const social = {
   },
 };
 
+// The company behind the Art Station, as it appears in the footer.
+export const company = {
+  name: "RACINGWOOD TECHNOLOGY",
+  addressLines: ["34 avenue des Champs-Élysées", "75008 PARIS"],
+  phone: "+33 (0) 7 80 40 40 70",
+  // tel: links must carry no spaces or brackets.
+  phoneHref: "+33780404070",
+};
+
 /**
  * The publisher's identity, as it has to appear in the legal notice and the
  * privacy policy.
@@ -75,13 +84,13 @@ export const legal = {
   since: 2020,
 
   publisher: {
-    legalName: "TO COMPLETE — registered company name",
+    legalName: "RACINGWOOD TECHNOLOGY",
     legalForm: "TO COMPLETE — legal form (SAS, SARL, SAM…)",
     capital: "TO COMPLETE — share capital",
     registration: "TO COMPLETE — company number and registry (RCS / RCI)",
     vat: "TO COMPLETE — EU VAT number",
-    address: "TO COMPLETE — registered office address",
-    phone: "TO COMPLETE — telephone (or delete this line)",
+    address: "34 avenue des Champs-Élysées, 75008 Paris, France",
+    phone: "+33 (0) 7 80 40 40 70",
     // The publication director: a named individual, not the company.
     publicationDirector: "TO COMPLETE — name of the publication director",
   },

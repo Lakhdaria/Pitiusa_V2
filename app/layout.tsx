@@ -5,7 +5,6 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/cormorant";
 import "@fontsource-variable/cormorant/wght-italic.css";
 import "./globals.css";
-import ParticleField from "@/components/ParticleField";
 import CustomCursor from "@/components/CustomCursor";
 
 export const metadata: Metadata = {
@@ -38,7 +37,6 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body>
-        <ParticleField />
         <CustomCursor />
         {children}
       </body>

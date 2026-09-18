@@ -43,7 +43,7 @@ const GESTURE_END_MS = 140;
 // what made a mouse feel hair-trigger: the lightest flick of a finger jumped
 // a scene. Under 1 nothing is ever held back; much over 2 a wheel starts to
 // feel heavy.
-const NOTCHES = 1.8;
+const NOTCHES = 3;
 // The notch is learned from the pointer rather than assumed, because the
 // number a wheel reports is not a constant: Chrome sends 100 pixels, Firefox
 // sends 3 lines, a high-resolution wheel sends a stream of small ones. What

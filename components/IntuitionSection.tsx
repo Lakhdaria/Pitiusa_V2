@@ -109,6 +109,11 @@ const PHASES = {
   final: 115, // badges out, the machine grows until it fills the screen
   specs: 224, // it gives ground: closing line under it, then the specs
   hold2: 90, // …and holds, so the line and the specs can be read
+  // Dead scroll at the very end. The section below is pulled up by one screen
+  // and covers exactly this much, so whatever sits here is never seen — which
+  // is the point. Without it the cover fell on the last act instead, and the
+  // spec points were wiped off the screen while they were still being read.
+  tail: 110,
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -137,6 +142,22 @@ const AT = {
     "reveal",
     "final"
   ),
+  // The end of the live part, before the dead tail below it.
+  hold2: cum(
+    "appear",
+    "line1",
+    "line2",
+    "zoom",
+    "cards",
+    "read",
+    "morph",
+    "ring",
+    "spin",
+    "reveal",
+    "final",
+    "specs",
+    "hold2"
+  ),
 };
 
 // Where a wheel gesture is allowed to stop inside this section: one per act
@@ -153,9 +174,9 @@ const SNAP_AT = [
   S("appear", "line1", "line2", "zoom", "cards", "read", "morph"), // folded into the column
   S("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring"), // the circle closed
   S("appear", "line1", "line2", "zoom", "cards", "read", "morph", "ring", "spin"), // the copy in it
-  TOTAL - PHASES.specs - PHASES.hold2 - PHASES.final, // the cockpit in the ring
-  TOTAL - PHASES.specs - PHASES.hold2, // the machine at full size
-  TOTAL - PHASES.hold2, // the closing line and the specs, written out
+  TOTAL - PHASES.specs - PHASES.hold2 - PHASES.tail - PHASES.final, // the cockpit in the ring
+  TOTAL - PHASES.specs - PHASES.hold2 - PHASES.tail, // the machine at full size
+  TOTAL - PHASES.hold2 - PHASES.tail, // the closing line and the specs, written out
 ];
 
 const INSET_SIDE = 5;
@@ -283,7 +304,9 @@ export default function IntuitionSection() {
       f.style.left = `${sideInset.toFixed(1)}px`;
       f.style.right = `${sideInset.toFixed(1)}px`;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
-      f.style.opacity = `${span(p, 0, AT.appear) * (1 - exit)}`;
+      // Opaque from the moment this section pins: it overlaps the one above
+      // by a screen, so it has to cover it rather than fade up through it.
+      f.style.opacity = `${1 - exit}`;
       f.style.visibility = exit > 0.995 ? "hidden" : "visible";
     }
     if (imageRef.current) {
@@ -298,7 +321,9 @@ export default function IntuitionSection() {
       imageRef.current.style.transform = "scale(1)";
     }
 
-    const u2 = span(p, AT.zoom, AT.cards);
+    // Started while the photograph is still leaving: as two consecutive
+    // acts they left a blank screen between them.
+    const u2 = span(p, AT.zoom - (AT.zoom - AT.line2) * 0.4, AT.cards);
     const u5 = span(p, AT.ring, AT.spin);
     const u6 = span(p, AT.spin, AT.reveal);
     const u7 = span(p, AT.reveal, AT.final);
@@ -307,7 +332,10 @@ export default function IntuitionSection() {
     // to the building alone, so everything lands exactly when that budget
     // runs out — the last spec points used to still be fading in while the
     // scene was already fading out.
-    const u8 = span(p, AT.final, 1);
+    // Measured against the end of the live part, not the end of the section:
+    // the tail is there to be covered, and every timing below is written in
+    // terms of the acts that are actually seen.
+    const u8 = span(p, AT.final, AT.hold2);
     const u8w = clamp(u8 / BUILD);
     const spread = ease(u6);
     // Badges leave first, so the cockpit is alone by the time it reaches
@@ -821,14 +849,14 @@ export default function IntuitionSection() {
             ref={specsRef}
             className="pointer-events-none absolute inset-x-0 top-0 px-5 sm:px-6 md:px-12"
           >
-            <ul className="mx-auto grid max-w-5xl grid-cols-1 gap-x-12 gap-y-2 sm:grid-cols-2 sm:gap-y-3">
+            <ul className="mx-auto grid max-w-6xl grid-cols-1 gap-x-10 gap-y-2 sm:grid-cols-2 sm:gap-y-3">
               {SPECS.map((spec, i) => (
                 <li
                   key={spec}
                   ref={(el) => {
                     specRefs.current[i] = el;
                   }}
-                  className="flex gap-3 text-[0.8rem] leading-snug text-bone-dim sm:text-sm lg:text-base"
+                  className="flex gap-3 text-[0.8rem] leading-snug text-bone-dim sm:text-sm lg:whitespace-nowrap lg:text-[0.95rem]"
                   style={{ opacity: 0 }}
                 >
                   <span className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-oak" />

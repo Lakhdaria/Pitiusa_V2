@@ -37,6 +37,7 @@ export default function Hero() {
   const frameRef = useRef<HTMLDivElement>(null);
   const parallaxRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
+  const headlineBoxRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [introDone, setIntroDone] = useState(false);
   // Written by the scroll handler, read by the parallax loop: both want the
@@ -148,7 +149,10 @@ export default function Hero() {
     const fade = Math.max(0, Math.min(1, (progress - 0.5) / 0.5));
     const ease = (t: number) => 1 - Math.pow(1 - t, 3);
     const zoom = ease(Math.min(1, fade / 0.55));
-    const exit = ease(Math.max(0, Math.min(1, (fade - 0.45) / 0.55)));
+    // Held until the very end of the hero's own scroll. It used to clear
+    // over the middle of it, which left a blank screen before the section
+    // below had anything up.
+    const exit = ease(Math.max(0, Math.min(1, (fade - 0.72) / 0.28)));
 
     if (headline) {
       // Driven by the pull-back curve itself, not by a separate rate. The
@@ -176,6 +180,16 @@ export default function Hero() {
       frame.style.bottom = `${topInset.toFixed(1)}px`;
       frame.style.left = `${sideInset.toFixed(1)}px`;
       frame.style.right = `${sideInset.toFixed(1)}px`;
+
+      // The headline is laid out against the section, but the mount is inset
+      // from it — on a screen wider than 16:9 the two came apart and the
+      // title started outside the picture. It follows the mount instead.
+      if (headlineBoxRef.current) {
+        const pad = framePad(vw);
+        headlineBoxRef.current.style.paddingLeft = `${(sideInset + pad).toFixed(1)}px`;
+        headlineBoxRef.current.style.paddingRight = `${(sideInset + pad).toFixed(1)}px`;
+        headlineBoxRef.current.style.paddingTop = `${(topInset + pad).toFixed(1)}px`;
+      }
       frame.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(
         1
       )}px, 0)`;
@@ -238,7 +252,14 @@ export default function Hero() {
       </div>
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-oak/10 blur-[140px]" />
 
-      <div className="relative z-10 flex h-full flex-col items-start justify-start px-6 pt-32 text-left md:px-12 md:pt-40">
+      {/* Its own padding is written from the mount's position above, so the
+          two are always aligned; these classes are the pre-hydration state
+          and the inner inset the title keeps inside the picture. */}
+      <div
+        ref={headlineBoxRef}
+        className="relative z-10 flex h-full flex-col items-start justify-start px-6 pt-32 text-left md:px-12 md:pt-40"
+      >
+        <div className="w-full px-4 pt-10 sm:px-8 sm:pt-14">
         <h1
           ref={headlineRef}
           className={`max-w-3xl font-display leading-[0.95] ${
@@ -256,6 +277,7 @@ export default function Hero() {
             Pitiusa Art Station
           </span>
         </h1>
+        </div>
       </div>
     </section>
   );

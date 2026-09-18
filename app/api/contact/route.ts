@@ -40,14 +40,14 @@ function validate(body: Record<string, unknown>) {
   const message = str(body.message);
   const phone = str(body.phone);
 
-  if (name.length < 2) errors.name = "Merci d'indiquer votre nom.";
-  else if (name.length > MAX.name) errors.name = "Ce nom est trop long.";
+  if (name.length < 2) errors.name = "Please tell us your name.";
+  else if (name.length > MAX.name) errors.name = "That name is too long.";
 
-  if (!EMAIL.test(email)) errors.email = "Cette adresse e-mail semble incorrecte.";
-  else if (email.length > MAX.email) errors.email = "Cette adresse est trop longue.";
+  if (!EMAIL.test(email)) errors.email = "That e-mail address looks wrong.";
+  else if (email.length > MAX.email) errors.email = "That address is too long.";
 
-  if (message.length < 10) errors.message = "Dites-nous en un peu plus (10 caractères minimum).";
-  else if (message.length > MAX.message) errors.message = "Ce message est trop long.";
+  if (message.length < 10) errors.message = "Tell us a little more (10 characters minimum).";
+  else if (message.length > MAX.message) errors.message = "That message is too long.";
 
   return { errors, values: { name, email, message, phone: phone.slice(0, 40) } };
 }
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return Response.json({ ok: false, error: "Requête invalide." }, { status: 400 });
+    return Response.json({ ok: false, error: "Invalid request." }, { status: 400 });
   }
 
   // Honeypot: a real person never sees this field, so anything in it is a
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     "unknown";
   if (rateLimited(ip)) {
     return Response.json(
-      { ok: false, error: "Trop de messages envoyés. Réessayez dans quelques minutes." },
+      { ok: false, error: "Too many messages sent. Try again in a few minutes." },
       { status: 429 }
     );
   }
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     // nothing is the worst possible failure here.
     console.error("[contact] RESEND_API_KEY is not set — message not sent.");
     return Response.json(
-      { ok: false, error: "L'envoi n'est pas configuré sur ce serveur." },
+      { ok: false, error: "Sending is not configured on this server." },
       { status: 503 }
     );
   }
@@ -107,11 +107,11 @@ export async function POST(request: Request) {
       from,
       to: [to],
       replyTo: values.email,
-      subject: `Nouveau message — ${values.name}`,
+      subject: `New message — ${values.name}`,
       text: [
-        `Nom     : ${values.name}`,
+        `Name    : ${values.name}`,
         `E-mail  : ${values.email}`,
-        values.phone ? `Tél.    : ${values.phone}` : null,
+        values.phone ? `Phone   : ${values.phone}` : null,
         "",
         values.message,
       ]
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     if (error) {
       console.error("[contact] Resend refused the message:", error);
       return Response.json(
-        { ok: false, error: "L'envoi a échoué. Réessayez ou écrivez-nous directement." },
+        { ok: false, error: "Sending failed. Try again, or write to us directly." },
         { status: 502 }
       );
     }
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[contact] Unexpected failure:", err);
     return Response.json(
-      { ok: false, error: "L'envoi a échoué. Réessayez ou écrivez-nous directement." },
+      { ok: false, error: "Sending failed. Try again, or write to us directly." },
       { status: 500 }
     );
   }

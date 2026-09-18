@@ -56,6 +56,9 @@ const SNAP_AT = [
   E("logo", "swap", "shrink") + PHASES.beat1 * BEAT_REST,
   E("logo", "swap", "shrink", "beat1") + PHASES.beat2 * BEAT_REST,
   E("logo", "swap", "shrink", "beat1", "beat2") + PHASES.beat3 * BEAT_REST,
+  // The aerial shot, once the film has left and it has the screen: without
+  // this it arrived and the section ended in the same gesture.
+  TOTAL - PHASES.outro * 0.15,
 ];
 
 // The mark once it has parked, and how far in from the plate's corner it
@@ -121,7 +124,7 @@ export default function EcologySection() {
     const corner = portrait ? CORNER.portrait : CORNER.wide;
 
     // --- The mark: centred, then green, then away into the corner ---
-    const appear = ease(span(p, 0, AT.logo * 0.55));
+    const appear = ease(span(p, 0, AT.logo * 0.12));
     // Gone before the film moves. The mark is a sibling of the frame, not a
     // child of it, so it never travelled with the film on the way out — it
     // stayed pinned in the corner while the video slid away underneath,
@@ -212,7 +215,15 @@ export default function EcologySection() {
 
     // --- The aerial shot takes the screen as the film leaves ----------
     if (loftRef.current) {
-      loftRef.current.style.opacity = `${ease(clamp((u - 0.55) / 0.3))}`;
+      // Fitted like the film: it was the one frame still left full-bleed, so
+      // `object-cover` was showing a slice of a 16:9 photograph.
+      const fit = fitFrame(sw * 0.9, sh);
+      const l = loftRef.current;
+      l.style.top = `${((sh - fit.h) / 2).toFixed(1)}px`;
+      l.style.bottom = `${((sh - fit.h) / 2).toFixed(1)}px`;
+      l.style.left = `${((sw - fit.w) / 2).toFixed(1)}px`;
+      l.style.right = `${((sw - fit.w) / 2).toFixed(1)}px`;
+      l.style.opacity = `${ease(clamp((u - 0.45) / 0.25))}`;
     }
   }, []);
 
@@ -263,7 +274,9 @@ export default function EcologySection() {
         style={{ height: `${TOTAL + 100}svh` }}
       >
         <SnapMarks at={SNAP_AT} />
-        <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
+        {/* Opaque: this section overlaps the one above by a screen and has to
+            cover it, not let it show through. */}
+        <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden bg-white">
           {/* The film, in the same white mount as the photographs. */}
           <div
             ref={filmRef}

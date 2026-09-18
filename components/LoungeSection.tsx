@@ -22,12 +22,19 @@ const PHASES = {
   line1: 90, // the claim
   line2: 90, // …and what it resolves into
   zoom: 110, // pulls back, then rides up and out
+  // Dead scroll at the very end. The section below is pulled up by one screen
+  // and covers exactly this much, so whatever sits here is never seen — which
+  // is the point. Without it the cover fell on the last act instead, and the
+  // spec points were wiped off the screen while they were still being read.
+  tail: 110,
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const AT = {
   appear: PHASES.appear / TOTAL,
   line1: (PHASES.appear + PHASES.line1) / TOTAL,
   line2: (PHASES.appear + PHASES.line1 + PHASES.line2) / TOTAL,
+  // The end of the live part, before the dead tail below it.
+  zoom: (PHASES.appear + PHASES.line1 + PHASES.line2 + PHASES.zoom) / TOTAL,
 };
 
 // A stop per line, so each one is read standing still.
@@ -83,7 +90,7 @@ export default function LoungeSection() {
 
     // Same exit as the hero and the intuition photo: pull back into a
     // smaller plate, then ride up and out of the viewport.
-    const u = span(p, AT.line2, 1);
+    const u = span(p, AT.line2, AT.zoom);
     const zoom = ease(Math.min(1, u / 0.55));
     const exit = ease(clamp((u - 0.45) / 0.55));
 
@@ -99,7 +106,9 @@ export default function LoungeSection() {
       f.style.left = `${sideInset.toFixed(1)}px`;
       f.style.right = `${sideInset.toFixed(1)}px`;
       f.style.transform = `translate3d(0, ${(-exit * (frameH + topInset + 24)).toFixed(1)}px, 0)`;
-      f.style.opacity = `${span(p, 0, AT.appear) * (1 - exit)}`;
+      // Opaque from the moment this section pins: it overlaps the one above
+      // by a screen, so it has to cover it rather than fade up through it.
+      f.style.opacity = `${1 - exit}`;
       f.style.visibility = exit > 0.995 ? "hidden" : "visible";
     }
     if (imageRef.current) {

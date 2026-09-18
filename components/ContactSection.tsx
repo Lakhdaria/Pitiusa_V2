@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Reveal from "./Reveal";
-import { contact, product } from "@/content/pitiusa";
+import Image from "next/image";
 
 type Field = "name" | "email" | "message";
 type Errors = Partial<Record<Field, string>>;
@@ -23,7 +23,9 @@ export default function ContactSection() {
 
     const data = new FormData(event.currentTarget);
     const payload = {
-      name: String(data.get("name") ?? ""),
+      // The API takes one name; the form asks for two, so they are joined
+      // here rather than the endpoint learning about the split.
+      name: `${String(data.get("firstName") ?? "")} ${String(data.get("lastName") ?? "")}`.trim(),
       email: String(data.get("email") ?? ""),
       phone: String(data.get("phone") ?? ""),
       message: String(data.get("message") ?? ""),
@@ -59,10 +61,10 @@ export default function ContactSection() {
       setErrors(fieldErrors);
       // A generic line under the button on top of per-field messages just
       // repeats what the fields already say.
-      setFailure(hasFieldErrors ? "" : body.error ?? "Une erreur est survenue. Réessayez.");
+      setFailure(hasFieldErrors ? "" : body.error ?? "Something went wrong. Please try again.");
       setStatus("error");
     } catch {
-      setFailure("Connexion impossible. Vérifiez votre réseau et réessayez.");
+      setFailure("Could not reach the server. Check your connection and try again.");
       setStatus("error");
     }
   }
@@ -73,24 +75,19 @@ export default function ContactSection() {
 
       <div className="relative mx-auto grid max-w-6xl gap-10 lg:grid-cols-2 lg:gap-24">
         <Reveal>
-          <div>
-            <h2 className="font-display text-[1.75rem] leading-tight text-bone sm:text-4xl md:text-5xl">
-              Private viewings in {contact.location}.
-            </h2>
-            <p className="mt-6 max-w-md text-lg leading-relaxed text-bone-dim">
-              Every Pitiusa is built entirely to order, over {product.buildTimeEn.toLowerCase()}. The
-              first edition is limited to {product.editionSizeEn}.
-            </p>
-            <p className="mt-6 max-w-md text-lg leading-relaxed text-bone-dim">
-              For a private viewing, a press enquiry or any other question, write to us — we reply
-              within two working days.
-            </p>
-            <a
-              href={`mailto:${contact.email}`}
-              className="mt-8 inline-block py-1.5 font-display text-lg text-oak transition-colors hover:text-bone"
-            >
-              {contact.email}
-            </a>
+          {/* The mark alone, at size. The heading, the two paragraphs and the
+              e-mail link that used to sit here are gone: the form is the
+              whole invitation, and the address is in the footer. */}
+          <div className="flex items-center justify-center lg:justify-start">
+            <Image
+              src="/logo/pitiusa-logo.png"
+              alt="Pitiusa Art Station"
+              width={2000}
+              height={2000}
+              sizes="(min-width: 1024px) 34vw, 62vw"
+              priority={false}
+              className="h-auto w-[62vw] max-w-[420px] lg:w-[34vw]"
+            />
           </div>
         </Reveal>
 
@@ -100,26 +97,39 @@ export default function ContactSection() {
                 skipped by the tab key: nothing but a bot can fill it in. */}
             <div className="absolute left-[-9999px]" aria-hidden="true">
               <label>
-                Société
+                Company
                 <input type="text" name="company" tabIndex={-1} autoComplete="off" />
               </label>
             </div>
 
-            <label className="flex flex-col gap-2">
-              <span className="text-sm text-bone-dim">Nom</span>
-              <input
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                aria-invalid={Boolean(errors.name)}
-                className={field}
-              />
-              {errors.name && <span className="text-sm text-oak">{errors.name}</span>}
-            </label>
+            <div className="grid gap-7 sm:grid-cols-2">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-bone-dim">First Name*</span>
+                <input
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  aria-invalid={Boolean(errors.name)}
+                  className={field}
+                />
+              </label>
+              <label className="flex flex-col gap-2">
+                <span className="text-sm text-bone-dim">Last Name*</span>
+                <input
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  aria-invalid={Boolean(errors.name)}
+                  className={field}
+                />
+              </label>
+            </div>
+            {errors.name && <span className="-mt-4 text-sm text-oak">{errors.name}</span>}
 
             <label className="flex flex-col gap-2">
-              <span className="text-sm text-bone-dim">E-mail</span>
+              <span className="text-sm text-bone-dim">E-mail address*</span>
               <input
                 name="email"
                 type="email"
@@ -133,13 +143,13 @@ export default function ContactSection() {
 
             <label className="flex flex-col gap-2">
               <span className="text-sm text-bone-dim">
-                Téléphone <span className="text-bone-dim/60">(facultatif)</span>
+                Phone <span className="text-bone-dim/60">(optional)</span>
               </span>
               <input name="phone" type="tel" autoComplete="tel" className={field} />
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-sm text-bone-dim">Message</span>
+              <span className="text-sm text-bone-dim">Message*</span>
               <textarea
                 name="message"
                 rows={4}
@@ -158,7 +168,7 @@ export default function ContactSection() {
               >
                 <span className="absolute inset-0 -translate-x-full bg-oak transition-transform duration-500 ease-out group-hover:translate-x-0" />
                 <span className="relative z-10 font-medium text-oak transition-colors duration-500 group-hover:text-ink">
-                  {status === "sending" ? "Envoi en cours…" : contact.cta}
+                  {status === "sending" ? "Sending…" : "Send"}
                 </span>
               </button>
 
@@ -166,7 +176,7 @@ export default function ContactSection() {
                   the result without the focus having to move. */}
               <p aria-live="polite" className="text-sm">
                 {status === "sent" && (
-                  <span className="text-oak">Message envoyé. Merci, nous revenons vers vous.</span>
+                  <span className="text-oak">Message sent. Thank you — we will come back to you.</span>
                 )}
                 {status === "error" && failure && <span className="text-bone-dim">{failure}</span>}
               </p>
