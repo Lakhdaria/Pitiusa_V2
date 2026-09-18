@@ -335,17 +335,17 @@ export default function SimulationsSection() {
 
   const staticBlock = (
     <>
-      <h2 className="mx-auto max-w-3xl text-center font-display text-4xl leading-tight text-bone md:text-6xl">
+      <h2 className="mx-auto max-w-3xl text-center font-display text-[1.75rem] leading-tight text-bone sm:text-4xl md:text-6xl">
         {TITLE}
       </h2>
-      <div className="mx-auto mt-16 grid max-w-6xl gap-6 sm:grid-cols-2 md:grid-cols-4">
+      <div className="mx-auto mt-10 grid md:mt-16 max-w-6xl gap-6 sm:grid-cols-2 md:grid-cols-4">
         {simulations.map((simulation) => (
           <div key={simulation.slug} className="h-full">
             <SimulationCard simulation={simulation} />
           </div>
         ))}
       </div>
-      <div className="relative mx-auto mt-16 aspect-[1800/1013] w-full max-w-4xl">
+      <div className="relative mx-auto mt-10 md:mt-16 aspect-[1800/1013] w-full max-w-4xl">
         <Image
           src="/images/front-detail-transp-v2.png"
           alt="Vue de face du poste de pilotage de la Pitiusa Art Station"
@@ -354,7 +354,7 @@ export default function SimulationsSection() {
           className="object-contain"
         />
       </div>
-      <ul className="mx-auto mt-12 grid max-w-5xl gap-x-12 gap-y-4 sm:grid-cols-2">
+      <ul className="mx-auto mt-8 grid md:mt-12 max-w-5xl gap-x-12 gap-y-4 sm:grid-cols-2">
         {HOTSPOTS.map((hs) => (
           <li key={hs.title}>
             <p className="font-display text-lg text-bone">{hs.title}</p>
@@ -362,13 +362,13 @@ export default function SimulationsSection() {
           </li>
         ))}
       </ul>
-      <div className="mx-auto mt-20 max-w-3xl text-center">
+      <div className="mx-auto mt-12 max-w-3xl text-center md:mt-20">
         {CLOSING_LINES.map((line, i) => (
           <p
             key={i}
             className={
               line.heading
-                ? "font-display text-2xl leading-tight text-bone md:text-3xl"
+                ? "font-display text-xl leading-tight text-bone sm:text-2xl md:text-3xl"
                 : `text-base leading-relaxed text-bone-dim ${line.gap ? "mt-5" : ""}`
             }
           >
@@ -381,7 +381,7 @@ export default function SimulationsSection() {
 
   if (reduced) {
     return (
-      <section id="art-station" className="relative px-6 py-24 md:px-12 md:py-32">
+      <section id="art-station" className="relative px-5 py-16 md:px-12 md:py-32">
         {staticBlock}
       </section>
     );
@@ -516,7 +516,7 @@ export default function SimulationsSection() {
       </section>
 
       {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative px-6 py-20 md:hidden">{staticBlock}</section>
+      <section className="relative px-5 py-14 md:hidden">{staticBlock}</section>
     </>
   );
 }

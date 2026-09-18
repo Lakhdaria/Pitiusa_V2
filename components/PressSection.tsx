@@ -12,7 +12,7 @@ export default function PressSection() {
           </p>
           <ScrollColorText
             text={`« ${press.quote} »`}
-            className="quote mt-4 font-display text-3xl md:text-5xl"
+            className="quote mt-4 font-display text-2xl sm:text-3xl md:text-5xl"
           />
         </div>
       </Reveal>

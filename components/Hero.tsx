@@ -217,8 +217,8 @@ export default function Hero() {
             textShadow: "0 2px 28px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.25)",
           }}
         >
-          <span className="block text-6xl md:text-8xl">Discover</span>
-          <span className="mt-2 block text-3xl md:text-5xl" style={{ fontVariationSettings: "'wght' 340" }}>
+          <span className="block text-[3rem] sm:text-6xl md:text-8xl">Discover</span>
+          <span className="mt-2 block text-2xl sm:text-3xl md:text-5xl" style={{ fontVariationSettings: "'wght' 340" }}>
             Pitiusa Art Station
           </span>
         </h1>

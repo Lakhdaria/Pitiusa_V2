@@ -68,13 +68,13 @@ export default function ContactSection() {
   }
 
   return (
-    <section id="contact" data-snap className="relative overflow-hidden bg-surface px-6 py-28 md:px-12 md:py-36">
+    <section id="contact" data-snap className="relative overflow-hidden bg-surface px-5 py-16 md:px-12 md:py-36">
       <div className="pointer-events-none absolute -right-40 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-oak/10 blur-[140px]" />
 
-      <div className="relative mx-auto grid max-w-6xl gap-16 lg:grid-cols-2 lg:gap-24">
+      <div className="relative mx-auto grid max-w-6xl gap-10 lg:grid-cols-2 lg:gap-24">
         <Reveal>
           <div>
-            <h2 className="font-display text-4xl leading-tight text-bone md:text-5xl">
+            <h2 className="font-display text-[1.75rem] leading-tight text-bone sm:text-4xl md:text-5xl">
               Visites privées à {contact.location}.
             </h2>
             <p className="mt-6 max-w-md text-lg leading-relaxed text-bone-dim">
@@ -87,7 +87,7 @@ export default function ContactSection() {
             </p>
             <a
               href={`mailto:${contact.email}`}
-              className="mt-8 inline-block font-display text-lg text-oak transition-colors hover:text-bone"
+              className="mt-8 inline-block py-1.5 font-display text-lg text-oak transition-colors hover:text-bone"
             >
               {contact.email}
             </a>
@@ -171,6 +171,16 @@ export default function ContactSection() {
                 {status === "error" && failure && <span className="text-bone-dim">{failure}</span>}
               </p>
             </div>
+
+            {/* Said where the data is handed over, not buried in the footer:
+                the GDPR asks for the information at the point of collection. */}
+            <p className="text-sm leading-relaxed text-bone-dim">
+              Your details are used only to answer your enquiry —{" "}
+              <a href="/privacy-policy" className="text-oak underline-offset-4 hover:underline">
+                privacy policy
+              </a>
+              .
+            </p>
           </form>
         </Reveal>
       </div>

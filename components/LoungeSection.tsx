@@ -100,10 +100,10 @@ export default function LoungeSection() {
 
   if (reduced) {
     return (
-      <section className="relative px-6 py-24 md:px-12 md:py-32">
+      <section className="relative px-5 py-16 md:px-12 md:py-32">
         <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[28px]">{photo}</div>
         <p
-          className="mt-10 font-display text-3xl leading-[1.05] md:text-5xl"
+          className="mt-10 font-display text-[1.6rem] leading-[1.15] sm:text-3xl sm:leading-[1.05] md:text-5xl"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
           {/* Stacked, not joined with a comma: the second line opens with a
@@ -174,10 +174,10 @@ export default function LoungeSection() {
       </section>
 
       {/* Mobile: no pinning. */}
-      <section className="relative px-6 py-20 md:hidden">
+      <section className="relative px-5 py-14 md:hidden">
         <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[24px]">{photo}</div>
         <p
-          className="mt-8 font-display text-3xl leading-[1.05]"
+          className="mt-8 font-display text-[1.6rem] leading-[1.15] sm:text-3xl sm:leading-[1.05]"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
           {/* Stacked, not joined with a comma: the second line opens with a

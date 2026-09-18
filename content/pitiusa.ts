@@ -2,6 +2,11 @@ export const product = {
   editionSize: "cinq exemplaires",
   buildTime: "environ six mois",
   materials: "chêne français tricentenaire et frêne centenaire",
+  // The same three facts for the English chrome — the footer and anything
+  // else written in English. Kept beside the French so the two can't drift.
+  editionSizeEn: "five pieces",
+  buildTimeEn: "About six months",
+  materialsEn: "Three-hundred-year-old French oak and century-old ash",
 };
 
 export const uses = [
@@ -44,4 +49,51 @@ export const contact = {
   email: "contact@pitiusa.art",
   cta: "Demander une visite privée",
   location: "Monaco",
+};
+
+export const social = {
+  instagram: {
+    handle: "@pitiusa.art",
+    url: "https://www.instagram.com/pitiusa.art/",
+  },
+};
+
+/**
+ * The publisher's identity, as it has to appear in the legal notice and the
+ * privacy policy.
+ *
+ * ⚠️ The values marked `TO COMPLETE` are the only information nobody but you
+ * can supply. While they are here the legal pages print them as they are —
+ * visibly unfinished rather than plausibly wrong. Search this file for
+ * `TO COMPLETE` before going live; nothing else needs touching.
+ */
+export const legal = {
+  siteName: "Pitiusa Art Station",
+  domain: "pitiusa.art",
+  url: "https://pitiusa.art",
+  // The year the © runs from.
+  since: 2020,
+
+  publisher: {
+    legalName: "TO COMPLETE — registered company name",
+    legalForm: "TO COMPLETE — legal form (SAS, SARL, SAM…)",
+    capital: "TO COMPLETE — share capital",
+    registration: "TO COMPLETE — company number and registry (RCS / RCI)",
+    vat: "TO COMPLETE — EU VAT number",
+    address: "TO COMPLETE — registered office address",
+    phone: "TO COMPLETE — telephone (or delete this line)",
+    // The publication director: a named individual, not the company.
+    publicationDirector: "TO COMPLETE — name of the publication director",
+  },
+
+  // The site's host, which French law (LCEN, art. 6) requires to be named.
+  host: {
+    name: "TO COMPLETE — hosting provider (Vercel, OVH, Scaleway…)",
+    address: "TO COMPLETE — hosting provider's address",
+    url: "",
+  },
+
+  // Where data-protection requests are answered. The site's contact address
+  // will do until there is a reason for a separate one.
+  dpoEmail: "contact@pitiusa.art",
 };

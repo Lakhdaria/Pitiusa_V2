@@ -163,7 +163,7 @@ const BOTTOM_GAP = 40;
 function ExperienceCard({ experience }: { experience: Experience }) {
   const Icon = icons[experience.icon];
   return (
-    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-7 py-10 text-center transition-colors duration-300 hover:border-oak">
+    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-6 py-8 text-center sm:px-7 sm:py-10 transition-colors duration-300 hover:border-oak">
       <div className="flex flex-col items-center justify-center gap-4">
         <Icon className="h-10 w-10 shrink-0 text-oak" strokeWidth={1.25} />
         <h3 className="font-display text-base uppercase tracking-[0.18em] text-bone">
@@ -320,14 +320,15 @@ export default function IntuitionSection() {
       const card = cardRefs.current[i];
       const el = movingRefs.current[i];
       if (card) {
-        // Mirror of the first set: these come in from off the left-hand end
-        // of the row, the rightmost card released first and crossing the
-        // whole row, each later one stopping short of it. The offset is a
-        // whole number of slots so the travel distances differ and the
-        // order reads; a fixed nudge would look like four cards twitching.
+        // The same arrival as the first set, not a mirror of it: in from off
+        // the right-hand end of the row, the leftmost card released first and
+        // crossing the whole row, each later one stopping short of it. The
+        // offset is a whole number of slots so the travel distances differ
+        // and the order reads; a fixed nudge would look like four cards
+        // twitching.
         const slotW = (card.offsetWidth || 0) + 28;
-        const enter = ease(clamp((u2 - 0.22 - (experiences.length - 1 - i) * 0.16) / 0.3));
-        card.style.transform = `translate3d(${(-(1 - enter) * (i + 1) * slotW).toFixed(1)}px, 0, 0)`;
+        const enter = ease(clamp((u2 - 0.22 - i * 0.16) / 0.3));
+        card.style.transform = `translate3d(${((1 - enter) * (experiences.length - i) * slotW).toFixed(1)}px, 0, 0)`;
         // Cut as its own bubble is released — the icon reads as having left
         // the card. The cards are the first wave, so they hold slots 0–3.
         card.style.opacity = `${enter * (1 - clamp((U - i * SLOT_GAP) / 0.05))}`;
@@ -555,24 +556,24 @@ export default function IntuitionSection() {
 
   const staticBlock = (
     <>
-      <h2 className="mx-auto mt-16 max-w-4xl text-center font-display text-3xl leading-tight text-bone md:text-5xl">
+      <h2 className="mx-auto mt-10 max-w-4xl md:mt-16 text-center font-display text-[1.6rem] leading-tight text-bone sm:text-2xl sm:text-3xl md:text-5xl">
         {CARDS_HEADING}
       </h2>
-      <div className="mx-auto mt-12 grid max-w-6xl gap-6 sm:grid-cols-2 md:grid-cols-4">
+      <div className="mx-auto mt-8 grid md:mt-12 max-w-6xl gap-6 sm:grid-cols-2 md:grid-cols-4">
         {experiences.map((experience) => (
           <ExperienceCard key={experience.slug} experience={experience} />
         ))}
       </div>
       <div className="mx-auto mt-20 max-w-xl text-center">
-        <h2 className="font-display text-2xl leading-tight text-bone md:text-3xl">
+        <h2 className="font-display text-xl leading-tight text-bone sm:text-2xl md:text-3xl">
           {RING_HEADING.join(" ")}
         </h2>
         <p className="mt-4 text-base leading-relaxed text-bone-dim">{RING_TEXT}</p>
       </div>
-      <p className="mx-auto mt-20 max-w-3xl text-center font-display text-xl leading-snug text-bone md:text-3xl">
+      <p className="mx-auto mt-12 max-w-3xl md:mt-20 text-center font-display text-lg leading-snug text-bone sm:text-xl md:text-3xl">
         {FINAL_TEXT}
       </p>
-      <ul className="mx-auto mt-12 grid max-w-5xl gap-x-12 gap-y-3 sm:grid-cols-2">
+      <ul className="mx-auto mt-8 grid md:mt-12 max-w-5xl gap-x-12 gap-y-3 sm:grid-cols-2">
         {SPECS.map((spec) => (
           <li key={spec} className="flex gap-3 text-sm leading-snug text-bone-dim">
             <span className="mt-[0.45em] h-1 w-1 shrink-0 rounded-full bg-oak" />
@@ -593,7 +594,7 @@ export default function IntuitionSection() {
 
   if (reduced) {
     return (
-      <section id="intuition" className="relative bg-white px-6 py-24 md:px-12 md:py-32">
+      <section id="intuition" className="relative bg-white px-5 py-16 md:px-12 md:py-32">
         <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[28px]">
           <Image
             src="/images/rear-detail-v2.jpg"
@@ -835,7 +836,7 @@ export default function IntuitionSection() {
       </section>
 
       {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative bg-white px-6 py-20 md:hidden">
+      <section className="relative bg-white px-5 py-14 md:hidden">
         <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[24px]">
           <Image
             src="/images/rear-detail-v2.jpg"
@@ -846,7 +847,7 @@ export default function IntuitionSection() {
           />
         </div>
         <p
-          className="mt-8 font-display text-3xl leading-[1.05]"
+          className="mt-8 font-display text-[1.6rem] leading-[1.15] sm:text-3xl sm:leading-[1.05]"
           style={{ fontVariationSettings: "'wght' 380", color: "#3d2410" }}
         >
           {IMAGE_LINES.join(" ")}

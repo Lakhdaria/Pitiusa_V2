@@ -178,7 +178,7 @@ export default function EcologySection() {
 
   if (reduced) {
     return (
-      <section className="relative px-6 py-24 md:px-12 md:py-32">
+      <section className="relative px-5 py-16 md:px-12 md:py-32">
         <Image
           src="/logo/pitiusa-logo-green.png"
           alt="Pitiusa Art Station"
@@ -187,14 +187,14 @@ export default function EcologySection() {
           sizes="200px"
           className="mx-auto h-auto w-40"
         />
-        <div className="mx-auto mt-14 max-w-2xl space-y-8">
+        <div className="mx-auto mt-10 max-w-2xl space-y-6 md:mt-14 md:space-y-8">
           {BEATS.map((beat) => (
             <p key={beat} className="text-lg leading-relaxed text-bone-dim">
               {beat}
             </p>
           ))}
         </div>
-        <div className="relative mt-14 aspect-[16/9] w-full overflow-hidden rounded-[28px]">
+        <div className="relative mt-10 md:mt-14 aspect-[16/9] w-full overflow-hidden rounded-[28px]">
           <Image
             src="/images/loft-aerial-v2.jpg"
             alt="Pitiusa Art Station, vue aérienne"
@@ -323,7 +323,7 @@ export default function EcologySection() {
       </section>
 
       {/* Mobile: no pinning, the same content stacked. */}
-      <section className="relative px-6 py-20 md:hidden">
+      <section className="relative px-5 py-14 md:hidden">
         <Image
           src="/logo/pitiusa-logo-green.png"
           alt="Pitiusa Art Station"

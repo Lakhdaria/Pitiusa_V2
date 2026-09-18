@@ -14,7 +14,7 @@ export default function UsesSection() {
   return (
     <section className="relative bg-ink px-6 py-28 md:px-12 md:py-40">
       <Reveal>
-        <h2 className="mx-auto max-w-2xl text-center font-display text-4xl leading-tight text-bone md:text-6xl">
+        <h2 className="mx-auto max-w-2xl text-center font-display text-[1.75rem] leading-tight text-bone sm:text-4xl md:text-6xl">
           Une expérience, quatre visages.
         </h2>
       </Reveal>

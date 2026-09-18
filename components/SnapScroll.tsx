@@ -26,12 +26,14 @@ import { useEffect } from "react";
 // few hundred milliseconds means nobody sees it. Paced so a long act reads in
 // a couple of seconds; the floor stops a short hop from being an instant jump,
 // the ceiling stops the longest one from feeling stuck.
-const SPEED_VH_PER_S = 1.8;
+const SPEED_VH_PER_S = 1.3;
 // The floor is what most single acts actually get: now that each one has a
 // stop of its own, most hops are a single act of 80–130svh and would
-// otherwise be governed entirely by the speed above.
-const MIN_MS = 900;
-const MAX_MS = 2600;
+// otherwise be governed entirely by the speed above. A second and a half is
+// roughly how long it takes to look at something arriving and read a line
+// under it.
+const MIN_MS = 1150;
+const MAX_MS = 3000;
 // One physical gesture is a burst of events, not one event: a wheel notch
 // fires several, and a trackpad flick fires a long inertial tail. This is
 // the quiet period that separates two gestures.
@@ -80,16 +82,17 @@ export default function SnapScroll() {
 
     let raf = 0;
     let animating = false;
-    // Where the current glide is headed. The next gesture is measured from
-    // here, not from the live scroll position — otherwise a second flick
-    // mid-glide lands on the stop we are already flying towards and the
-    // gesture reads as ignored.
+    // Where the current glide is headed. Used to recognise a gesture that
+    // asks for the stop already being flown to, so it can be dropped rather
+    // than queued behind it.
     let targetY = 0;
     let lastWheel = 0;
     let lastAdvance = 0;
-    // When the current glide is due to finish, so a sustained scroll can wait
-    // for it rather than talk over it.
+    // When the current glide is due to finish, so a sustained
+    // scroll can wait for it rather than talk over it.
     let glideEnds = 0;
+    // A single pending advance: -1, 0 or 1. One deep on purpose — see `go`.
+    let queued: -1 | 0 | 1 = 0;
     let peak = 0;
     let trough = 0;
     let decaying = false;
@@ -124,6 +127,9 @@ export default function SnapScroll() {
         return;
       }
       cancelAnimationFrame(raf);
+      // A gesture that reaches this point is being acted on now, so whatever
+      // was waiting is stale.
+      queued = 0;
 
       const travelled = Math.abs(distance) / window.innerHeight;
       const duration = Math.min(
@@ -152,18 +158,45 @@ export default function SnapScroll() {
         }
         animating = false;
         root.style.scrollBehavior = previous;
+        // A gesture arrived while this one was playing. Answer it now, so
+        // the acts run back to back instead of the visitor having to ask
+        // twice.
+        if (queued !== 0) {
+          const direction = queued;
+          queued = 0;
+          go(direction);
+        }
       };
       raf = requestAnimationFrame(step);
     };
 
     const go = (direction: 1 | -1) => {
       const all = stops();
-      const y = animating ? targetY : window.scrollY;
+      // Measured from where the page actually is, never from where the glide
+      // in flight is headed. Measured from the destination, gestures stack:
+      // the second one aims past the stop being flown to, the third past
+      // that, and three notches of a wheel carry you three acts downrange
+      // without ever landing. From the live position the next stop down is
+      // the one already being flown to…
+      const y = window.scrollY;
       const next =
         direction > 0
           ? all.find((s) => s > y + 4)
           : [...all].reverse().find((s) => s < y - 4);
-      if (next !== undefined) glideTo(next);
+      if (next === undefined) return;
+      // …so the gesture is held rather than obeyed, in a queue one deep.
+      // Dropping it outright is what made a trackpad feel dead: a trackpad
+      // gives one long gesture where a wheel gives a burst per notch, so a
+      // swipe landing inside a glide was the whole swipe, and the visitor
+      // had to make it again. Holding it keeps the acts running back to
+      // back, while the depth of one is what stops three gestures from
+      // carrying anyone three acts downrange. Turning back is answered at
+      // once, because that resolves to a different stop.
+      if (animating && next === targetY) {
+        queued = direction;
+        return;
+      }
+      glideTo(next);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -194,9 +227,7 @@ export default function SnapScroll() {
 
       if (decaying) {
         trough = Math.min(trough, delta);
-        // Climbing back out of the tail: a new push, so answer it. A deliberate
-        // second flick still cuts a glide short — someone who wants to get past
-        // an act they have already seen shouldn't have to sit through it.
+        // Climbing back out of the tail: a new push, so answer it.
         if (delta > trough * REPUSH && now - lastAdvance > 220) advance();
         return;
       }

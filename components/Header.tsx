@@ -6,9 +6,13 @@ import Image from "next/image";
 // Trimmed to what the page still contains. #anatomie is deliberately absent:
 // on desktop that content lives inside the pinned sequence and has no
 // scrollable anchor of its own, so the link would go nowhere.
+// Rooted at `/`, not bare hashes: the header is on the legal pages too, and
+// there a bare `#contact` points at an anchor that isn't on the document.
+// With the leading slash the browser still treats it as an in-page scroll
+// when the visitor is already on the home page.
 const links = [
-  { href: "#art-station", label: "L'Art Station" },
-  { href: "#contact", label: "Contact" },
+  { href: "/#art-station", label: "L'Art Station" },
+  { href: "/#contact", label: "Contact" },
 ];
 
 export default function Header() {
@@ -76,7 +80,7 @@ export default function Header() {
               : "border-brass-dim/25 bg-surface/35"
           }`}
         >
-          <a href="#" className="relative block h-8 w-8 shrink-0 md:h-10 md:w-10">
+          <a href="/" className="relative block h-8 w-8 shrink-0 md:h-10 md:w-10">
             <Image
               src="/logo/PITUSA Art  Station_logo Circular C (2).png"
               alt="Pitiusa Art Station"
@@ -133,7 +137,7 @@ export default function Header() {
         type="button"
         aria-label="Afficher le menu"
         onClick={() => setRevealed(true)}
-        className={`fixed left-1/2 top-0 z-50 flex h-6 w-14 -translate-x-1/2 items-end justify-center rounded-b-xl border border-t-0 border-brass-dim/40 bg-surface/70 pb-1 backdrop-blur-xl transition-all duration-300 ease-out ${
+        className={`fixed left-1/2 top-0 z-50 flex h-6 w-14 -translate-x-1/2 items-end justify-center rounded-b-xl before:absolute before:-inset-x-3 before:top-0 before:h-11 before:content-[''] border border-t-0 border-brass-dim/40 bg-surface/70 pb-1 backdrop-blur-xl transition-all duration-300 ease-out ${
           hidden ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0"
         }`}
       >
