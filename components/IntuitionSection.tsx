@@ -54,22 +54,18 @@ const SPECS = [
 ];
 
 // The four icons carried over from the previous section: these are the
-// ones that fall from the sky.
+// ones that drop from above, and they arrive last.
 const JOINERS = ["plane", "helicopter", "car", "drone"] as const;
-// Top-to-bottom order of the staging column, and therefore the order of
-// the train that runs out of it. The four older icons drop in from above
-// first, the four cards fold in underneath them.
-// Release order: the four older icons first, the four cards after.
-const COLUMN_ORDER = ["plane", "helicopter", "car", "drone", "meditation", "media", "education", "more"];
-// Where the train joins the circle, and how far each badge rides before
-// stopping. The leader goes all the way round, each following one stops a
-// slot earlier — which is what fills the circle evenly from a single
-// entry point. Final angles fall back out of this: -90 + arc.
-// Enters on the left, mid-height: far enough below the top edge that the
-// drop onto it is a real fall on screen, unlike an entry at the top of the
-// ellipse where there is barely any distance to cover.
+
+// Eight slots, 45° apart. The cards take every other one and the four from
+// above fill the gaps between them, so the circle is visibly waiting for
+// them rather than being built in one continuous sweep.
 const ENTRY_ANGLE = 180;
-const ARCS = [337.5, 292.5, 247.5, 202.5, 157.5, 112.5, 67.5, 22.5];
+// Where each card ends up, expressed as the arc it rides from the entry
+// point. Leader goes furthest; four slots, 90° apart.
+const CARD_ARCS = [337.5, 247.5, 157.5, 67.5];
+// …and the gaps they leave, as absolute angles, for the ones that fall in.
+const SKY_ANGLES = [112.5, 22.5, 292.5, 202.5];
 
 const BADGE = 84;
 // One entry per badge: amplitude, periods, phase, how fast it chases the
@@ -91,22 +87,23 @@ const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 // Progress of `p` through the [a, b] window, clamped.
 const span = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 // Each act is budgeted in svh — how much scrolling it should take — and the
 // 0–1 boundaries are derived from those budgets, so the pace is tuned by
 // editing one number instead of re-deriving a set of fractions by hand.
 const PHASES = {
-  appear: 30, // photo takes over from the previous section
-  hold: 70, // full-bleed, opening line
-  zoom: 108, // pulls back, then rides up and out
-  cards: 146, // heading and cards arrive
-  read: 70, // held still, time to read them
-  morph: 130, // the older icons fall in, the cards fold into the column
-  ring: 120, // the column runs out onto the circle like a train
-  spin: 146, // the circle holds and floats; the closing copy appears
-  reveal: 130, // copy out, cockpit in, the circle widens around it
-  final: 168, // badges out, cockpit grows, closing line written
-  specs: 190, // line out, machine rises, the spec points come in
+  appear: 20, // photo takes over from the previous section
+  hold: 48, // full-bleed, opening line
+  zoom: 73, // pulls back, then rides up and out
+  cards: 99, // heading and cards arrive
+  read: 48, // held still, time to read them
+  morph: 88, // the older icons fall in, the cards fold into the column
+  ring: 82, // the column runs out onto the circle like a train
+  spin: 99, // the circle holds and floats; the closing copy appears
+  reveal: 88, // copy out, cockpit in, the circle widens around it
+  final: 102, // badges out, the machine grows until it fills the screen
+  specs: 224, // it gives ground: closing line under it, then the specs
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -131,13 +128,13 @@ const BOTTOM_GAP = 40;
 function ExperienceCard({ experience }: { experience: Experience }) {
   const Icon = icons[experience.icon];
   return (
-    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-4 py-5 text-center transition-colors duration-300 hover:border-oak">
-      <div className="flex flex-col items-center justify-center gap-2">
-        <Icon className="h-6 w-6 shrink-0 text-oak" strokeWidth={1.25} />
-        <h3 className="font-display text-xs uppercase tracking-[0.18em] text-bone">
+    <div className="flex h-full w-full items-center justify-center rounded-2xl border-2 border-brass-dim/70 bg-ink px-7 py-10 text-center transition-colors duration-300 hover:border-oak">
+      <div className="flex flex-col items-center justify-center gap-4">
+        <Icon className="h-10 w-10 shrink-0 text-oak" strokeWidth={1.25} />
+        <h3 className="font-display text-base uppercase tracking-[0.18em] text-bone">
           {experience.title}
         </h3>
-        <p className="text-sm leading-snug text-bone-dim">{experience.summary}</p>
+        <p className="text-base leading-relaxed text-bone-dim">{experience.summary}</p>
       </div>
     </div>
   );
@@ -155,6 +152,7 @@ export default function IntuitionSection() {
   // The travelling circles, one per card, plus the four already on the ring.
   const movingRefs = useRef<Array<HTMLDivElement | null>>([]);
   const joinerRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const slotRefs = useRef<Array<HTMLDivElement | null>>([]);
   const ringTextRef = useRef<HTMLDivElement>(null);
   const cockpitRef = useRef<HTMLDivElement>(null);
   const finalTextRef = useRef<HTMLDivElement>(null);
@@ -262,45 +260,39 @@ export default function IntuitionSection() {
       const a = ((angle + spin) * Math.PI) / 180;
       return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) };
     };
-    // One badge at a time, each doing the full circuit: it drops in at the
-    // entry point on the left, rides round the ellipse, and parks. The
-    // staging column is gone — with eight slots spread over the viewport
-    // height, most badges had almost no distance to fall and the drop
-    // never read as one.
+    // Two waves. The cards go first: each turns into a bubble, rides the
+    // circuit and parks in every other slot, so what forms is a ring with
+    // four gaps in it. Only then do the four from the section before drop
+    // straight down into those gaps.
     const U = span(p, AT.read, AT.ring);
-    const SLOT_W = 0.115; // one badge's whole sequence
+    const SLOT_W = 0.115; // one card's whole sequence
     const SLOT_GAP = 0.105; // …and the wait before the next is released
+    const SKY_START = 0.5;
+    const SKY_GAP = 0.11;
+    const SKY_W = 0.14;
 
     const next: Base[] = [];
+    const entry = ringPos(ENTRY_ANGLE);
 
     experiences.forEach((experience, i) => {
       const card = cardRefs.current[i];
-      if (!card) return;
-      // Mirror of the first set: these come in from off the left-hand end
-      // of the row, the rightmost card released first and crossing the
-      // whole row, each later one stopping short of it. The offset is a
-      // whole number of slots so the travel distances differ and the order
-      // reads; a fixed nudge would look like four cards twitching.
-      const slotW = (card.offsetWidth || 0) + 16;
-      const enter = ease(clamp((u2 - 0.3 - (experiences.length - 1 - i) * 0.16) / 0.15));
-      card.style.transform = `translate3d(${(-(1 - enter) * (i + 1) * slotW).toFixed(1)}px, 0, 0)`;
-      // Cut as its own badge is released — the icon reads as having left
-      // the card. The cards go after the four older icons, so their
-      // release slots are 4 to 7.
-      const st = (i + 4) * SLOT_GAP;
-      card.style.opacity = `${enter * (1 - clamp((U - st) / 0.05))}`;
-    });
-
-    COLUMN_ORDER.forEach((key, k) => {
-      const cardIndex = experiences.findIndex((e) => e.icon === key);
-      const isCard = cardIndex !== -1;
-      const el = isCard
-        ? movingRefs.current[cardIndex]
-        : joinerRefs.current[JOINERS.indexOf(key as (typeof JOINERS)[number])];
+      const el = movingRefs.current[i];
+      if (card) {
+        // Mirror of the first set: these come in from off the left-hand end
+        // of the row, the rightmost card released first and crossing the
+        // whole row, each later one stopping short of it. The offset is a
+        // whole number of slots so the travel distances differ and the
+        // order reads; a fixed nudge would look like four cards twitching.
+        const slotW = (card.offsetWidth || 0) + 28;
+        const enter = ease(clamp((u2 - 0.22 - (experiences.length - 1 - i) * 0.16) / 0.3));
+        card.style.transform = `translate3d(${(-(1 - enter) * (i + 1) * slotW).toFixed(1)}px, 0, 0)`;
+        // Cut as its own bubble is released — the icon reads as having left
+        // the card. The cards are the first wave, so they hold slots 0–3.
+        card.style.opacity = `${enter * (1 - clamp((U - i * SLOT_GAP) / 0.05))}`;
+      }
       if (!el) return;
 
-      const t = clamp((U - k * SLOT_GAP) / SLOT_W);
-      const entry = ringPos(ENTRY_ANGLE);
+      const t = clamp((U - i * SLOT_GAP) / SLOT_W);
 
       // Falls onto the entry point: accelerating, then eased over the last
       // stretch with a short damped rebound, so it settles rather than
@@ -309,12 +301,10 @@ export default function IntuitionSection() {
       const fall = f < 0.8 ? f * f : 0.64 + 0.36 * (1 - Math.pow(1 - (f - 0.8) / 0.2, 2));
       const rebound = f > 0.84 && f < 1 ? -12 * Math.sin(((f - 0.84) / 0.16) * Math.PI) : 0;
 
-      // Then rides the circuit. The leader goes furthest round and each
-      // follower stops a slot earlier, so the circle fills from a single
-      // entry point — and since the next badge is only released once this
-      // one has parked, they never share the track.
+      // Then rides the circuit. Since the next card is only released once
+      // this one has parked, they never share the track.
       const ride = ease(clamp((t - 0.34) / 0.66));
-      const travelled = ARCS[k] * ride;
+      const travelled = CARD_ARCS[i] * ride;
       const onPath = ringPos(ENTRY_ANGLE + travelled);
 
       const x = ride > 0 ? onPath.x : entry.x;
@@ -335,74 +325,112 @@ export default function IntuitionSection() {
       });
     });
 
+    // The waiting gaps: faint rings that open once the cards have parked
+    // and close again as each bubble lands in them. They are what makes the
+    // pause read as the circle holding a place rather than as a circle that
+    // simply happens to be incomplete.
+    const slotsIn = ease(clamp((U - 0.4) / 0.08));
+
+    JOINERS.forEach((key, j) => {
+      const el = joinerRefs.current[j];
+      const slot = slotRefs.current[j];
+      const target = ringPos(SKY_ANGLES[j]);
+
+      const t = clamp((U - SKY_START - j * SKY_GAP) / SKY_W);
+      // Straight down into its gap, on the same gravity curve as the cards'
+      // entry drop — no circuit this time, they are filling a place that is
+      // already being held for them.
+      const fall = t < 0.8 ? t * t : 0.64 + 0.36 * (1 - Math.pow(1 - (t - 0.8) / 0.2, 2));
+      const rebound = t > 0.84 && t < 1 ? -12 * Math.sin(((t - 0.84) / 0.16) * Math.PI) : 0;
+
+      if (slot) {
+        slot.style.opacity = `${slotsIn * (1 - clamp(t / 0.5)) * (1 - badgesOut)}`;
+        slot.style.transform = `translate3d(${(target.x - BADGE / 2).toFixed(1)}px, ${(
+          target.y -
+          BADGE / 2
+        ).toFixed(1)}px, 0)`;
+      }
+      if (!el) return;
+
+      el.style.opacity = `${t > 0 ? 1 - badgesOut : 0}`;
+      next.push({
+        el,
+        x: target.x - BADGE / 2,
+        y: -BADGE + (target.y + BADGE) * fall + rebound - BADGE / 2,
+        w: BADGE,
+        h: BADGE,
+        r: BADGE / 2,
+        rot: spin,
+      });
+    });
+
     bases.current = next;
     // Only once the wheel has come to rest does the idle motion take over.
     // The idle drift takes over as soon as the last badge has parked.
     floatAmount.current = ease(clamp(u5 / 0.15));
 
-    // The cockpit is centred on the screen while it's alone inside the
-    // ring, then recentred into the band left free under the closing line
-    // as that line comes in — and capped so it can never grow past it.
-    // Sizing it on width alone is what put the machine behind the text.
-    const textIn = ease(clamp((u7 - 0.15) / 0.15));
+    const sceneOut = ease(clamp((u8 - 0.92) / 0.08));
+
+    // --- The machine, the closing line, then the specs ----------------
+    // It rises in from below the fold like the one in the section before,
+    // grows until it fills the screen, and only then gives ground: the
+    // closing line takes a band under it, the spec points take another
+    // under that. Both bands are measured from the real blocks rather than
+    // guessed, so a line that wraps pushes the machine up instead of
+    // ending up behind it.
+    const enterT = ease(clamp(u6 / 0.55));
+    const grow = ease(clamp(u7 / 0.7));
+    const give = ease(clamp(u8 / 0.4));
+    const textIn = ease(clamp((u8 - 0.22) / 0.2));
+    const specsIn = ease(clamp((u8 - 0.58) / 0.2));
+
     const textH = finalTextRef.current?.offsetHeight ?? 0;
-    const bandTop = sh * 0.03 + textH + 20;
-    const bandH = Math.max(140, sh - bandTop - sh * 0.02);
-    let availH = sh * 0.86 + (bandH - sh * 0.86) * textIn;
-    let centerY = sh / 2 + (bandTop + bandH / 2 - sh / 2) * textIn;
+    const specsH = specsRef.current?.offsetHeight ?? 0;
+    const topPad = sh * 0.035;
+    const reserved = (textH + 30) * textIn + (specsH + 26) * specsIn;
 
-    const sceneOut = ease(clamp((u8 - 0.9) / 0.1));
-
-    // Last move: the closing line goes, the machine rises into the top of
-    // the screen and the spec points fill the space it leaves. Same
-    // measured-band approach as before — the list's real height decides
-    // how much room the machine keeps, so a wrapping line can't push the
-    // two into each other.
-    const specsIn = ease(clamp(u8 / 0.35));
-    if (specsIn > 0) {
-      const specsH = specsRef.current?.offsetHeight ?? 0;
-      const sTop = sh * 0.04;
-      const sBand = Math.max(140, sh - sTop - specsH - sh * 0.08);
-      availH += (sBand - availH) * specsIn;
-      centerY += (sTop + sBand / 2 - centerY) * specsIn;
-    }
+    // Full-bleed at the end of `final`, then only as tall as what is left.
+    const fullH = sh * (0.52 + 0.46 * grow);
+    const bandH = Math.max(170, sh - topPad - reserved - sh * 0.035);
+    const availH = mix(fullH, Math.min(fullH, bandH), give);
+    const cockpitW = Math.min(sw * 0.98, availH * cockpitAspect.current);
+    const cockpitH = cockpitW / cockpitAspect.current;
+    const centerY = mix(sh / 2, topPad + cockpitH / 2, give * (reserved > 0 ? 1 : 0));
 
     if (cockpitRef.current) {
       const c = cockpitRef.current;
-      const grow = ease(clamp(u7 / 0.6));
-      // Width asked for, then clamped by the free height and by the
-      // viewport. On a typical screen it's the height that binds, which is
-      // why the closing line is kept tight above — every line it saves is
-      // width the machine gains.
-      const w = Math.min(
-        sw * (0.34 + 0.3 * spread + 0.4 * grow),
-        availH * cockpitAspect.current,
-        sw * 0.98
-      );
-      c.style.width = `${w.toFixed(1)}px`;
-      c.style.top = `${centerY.toFixed(1)}px`;
-      c.style.opacity = `${ease(clamp(u6 / 0.35)) * (1 - sceneOut)}`;
+      c.style.width = `${cockpitW.toFixed(1)}px`;
+      // Rises into place from below the fold, then holds its centre.
+      c.style.top = `${mix(sh + cockpitH * 0.6, centerY, enterT).toFixed(1)}px`;
+      c.style.opacity = `${ease(clamp(u6 / 0.3)) * (1 - sceneOut)}`;
     }
 
+    // The closing line sits in the band directly under the machine…
+    const textTop = centerY + cockpitH / 2 + 30;
     if (finalTextRef.current) {
-      finalTextRef.current.style.opacity = `${textIn * (1 - ease(clamp(u8 / 0.18)))}`;
+      const t = finalTextRef.current;
+      t.style.top = `${textTop.toFixed(1)}px`;
+      t.style.opacity = `${textIn * (1 - sceneOut)}`;
     }
-    // Word by word rather than one block: "progressively" has to be legible
-    // as an order, and a whole paragraph cross-fading reads as a single
-    // switch.
-    const head = ((u7 - 0.2) / 0.55) * FINAL_WORDS.length;
+    // …written word by word rather than in one block: "progressively" has
+    // to be legible as an order, and a whole paragraph cross-fading reads
+    // as a single switch.
+    const head = ((u8 - 0.26) / 0.28) * FINAL_WORDS.length;
     FINAL_WORDS.forEach((_, i) => {
       const el = wordRefs.current[i];
       if (el) el.style.opacity = `${clamp(head - i)}`;
     });
 
-    // Spec points, one after another: left column top to bottom, then
-    // right. A block that fades up in one go gives the eye nowhere to
-    // start.
+    // …and the spec points in the band under the line, one after another:
+    // left column top to bottom, then right. A block that fades up in one
+    // go gives the eye nowhere to start.
+    if (specsRef.current) {
+      specsRef.current.style.top = `${(textTop + textH + 26).toFixed(1)}px`;
+    }
     SPECS.forEach((_, i) => {
       const el = specRefs.current[i];
       if (!el) return;
-      const a = ease(clamp((u8 - 0.3 - i * 0.055) / 0.12)) * (1 - sceneOut);
+      const a = ease(clamp((u8 - 0.6 - i * 0.035) / 0.1)) * (1 - sceneOut);
       el.style.opacity = `${a}`;
       el.style.transform = `translate3d(0, ${((1 - a) * 14).toFixed(1)}px, 0)`;
     });
@@ -538,7 +566,8 @@ export default function IntuitionSection() {
       <section
         id="intuition"
         ref={wrapperRef}
-        className="relative hidden h-[1408svh] md:-mt-[100svh] md:block"
+        className="relative hidden md:-mt-[100svh] md:block"
+        style={{ height: `${TOTAL + 100}svh` }}
       >
         <div ref={stickyRef} className="sticky top-0 h-svh w-full overflow-hidden">
           {/* Same white mount and corner radii as the hero, so the photo
@@ -597,7 +626,7 @@ export default function IntuitionSection() {
             >
               {CARDS_HEADING}
             </h2>
-            <div className="mx-auto mt-6 grid max-w-6xl grid-cols-4 gap-4">
+            <div className="mx-auto mt-8 grid max-w-[86rem] grid-cols-4 gap-7">
               {experiences.map((experience, i) => (
                 <div
                   key={experience.slug}
@@ -653,10 +682,12 @@ export default function IntuitionSection() {
             />
           </div>
 
-          {/* Closing line, written word by word above the machine. */}
+          {/* Closing line, written word by word in the band under the
+              machine. Its `top` is driven from JS so the band always
+              starts where the machine actually ends. */}
           <div
             ref={finalTextRef}
-            className="pointer-events-none absolute inset-x-0 top-[3svh] px-6 md:px-12"
+            className="pointer-events-none absolute inset-x-0 top-0 px-6 md:px-12"
             style={{ opacity: 0 }}
           >
             <p className="mx-auto max-w-5xl text-center font-display text-2xl leading-snug text-bone lg:text-[2rem]">
@@ -675,10 +706,11 @@ export default function IntuitionSection() {
             </p>
           </div>
 
-          {/* Spec points. Two columns, filled in reading order. */}
+          {/* Spec points, in the band under the closing line — same
+              JS-driven `top` for the same reason. */}
           <div
             ref={specsRef}
-            className="pointer-events-none absolute inset-x-0 bottom-[4svh] px-6 md:px-12"
+            className="pointer-events-none absolute inset-x-0 top-0 px-6 md:px-12"
           >
             <ul className="mx-auto grid max-w-5xl grid-cols-2 gap-x-12 gap-y-3">
               {SPECS.map((spec, i) => (
@@ -702,6 +734,17 @@ export default function IntuitionSection() {
               the travelling circles and the waiting ones share one and the
               same positioning maths. */}
           <div className="pointer-events-none absolute inset-0">
+            {/* The gaps the cards leave open, drawn while they wait. */}
+            {JOINERS.map((key, j) => (
+              <div
+                key={`slot-${key}`}
+                ref={(el) => {
+                  slotRefs.current[j] = el;
+                }}
+                className="absolute left-0 top-0 rounded-full border-2 border-dashed border-brass-dim/70"
+                style={{ opacity: 0, width: BADGE, height: BADGE }}
+              />
+            ))}
             {JOINERS.map((key, i) => {
               const Icon = icons[key];
               return (

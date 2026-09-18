@@ -21,13 +21,13 @@ const span = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 // Budgeted in svh like the other pinned sections; the 0–1 boundaries below
 // are derived from these, so the pace is one number per act.
 const PHASES = {
-  logo: 90, // the mark, centred and large
-  swap: 80, // …turning green
-  shrink: 120, // shrinking into the corner as the film comes up
-  beat1: 130,
-  beat2: 130,
-  beat3: 130,
-  outro: 150, // film pulls back and leaves, the aerial shot takes over
+  logo: 61, // the mark, centred and large
+  swap: 54, // …turning green
+  shrink: 82, // shrinking into the corner as the film comes up
+  beat1: 88,
+  beat2: 88,
+  beat3: 88,
+  outro: 102, // film pulls back and leaves, the aerial shot takes over
 };
 const TOTAL = Object.values(PHASES).reduce((a, b) => a + b, 0);
 const cum = (...keys: Array<keyof typeof PHASES>) =>
@@ -63,6 +63,12 @@ export default function EcologySection() {
 
     // --- The mark: centred, then green, then away into the corner ---
     const appear = ease(span(p, 0, AT.logo * 0.55));
+    // Gone before the film moves. The mark is a sibling of the frame, not a
+    // child of it, so it never travelled with the film on the way out — it
+    // stayed pinned in the corner while the video slid away underneath,
+    // which is what read as a glitch. Clearing it at the end of the last
+    // beat means there is nothing left to strand.
+    const logoOut = ease(clamp((span(p, AT.beat2, AT.beat3) - 0.7) / 0.3));
     const green = ease(span(p, AT.logo, AT.swap));
     const travel = ease(span(p, AT.swap, AT.swap + (AT.shrink - AT.swap) * 0.75));
 
@@ -82,9 +88,7 @@ export default function EcologySection() {
       l.style.transform = `translate3d(${(x - size / 2).toFixed(1)}px, ${(y - size / 2).toFixed(
         1
       )}px, 0)`;
-      // Eased in on arrival, and it settles from slightly oversized rather
-      // than just materialising.
-      l.style.opacity = `${appear}`;
+      l.style.opacity = `${appear * (1 - logoOut)}`;
     }
     if (logoOrangeRef.current) logoOrangeRef.current.style.opacity = `${1 - green}`;
     if (logoGreenRef.current) logoGreenRef.current.style.opacity = `${green}`;
@@ -115,11 +119,6 @@ export default function EcologySection() {
         1,
         1.12 - zoom * 0.12 - exit * 0.08
       ).toFixed(3)})`;
-    }
-
-    // The mark rides out with the film it sits on.
-    if (logoRef.current && exit > 0) {
-      logoRef.current.style.opacity = `${appear * (1 - exit)}`;
     }
 
     // --- Three beats of copy, one at a time --------------------------

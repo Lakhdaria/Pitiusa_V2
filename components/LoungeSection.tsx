@@ -14,7 +14,7 @@ const span = (p: number, a: number, b: number) => clamp((p - a) / (b - a));
 
 // Budgeted in svh, like the other pinned sections: the 0–1 boundaries are
 // derived from these, so the pace is one number to change.
-const PHASES = { appear: 30, hold: 150, zoom: 140 };
+const PHASES = { appear: 20, hold: 102, zoom: 95 };
 const TOTAL = PHASES.appear + PHASES.hold + PHASES.zoom;
 const AT = {
   appear: PHASES.appear / TOTAL,
